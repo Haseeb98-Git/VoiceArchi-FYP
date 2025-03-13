@@ -1,0 +1,156 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital@0;1&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Roboto&display=swap");
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
+@import "tailwindcss";
+
+.animate-reveal {
+    clip-path: inset(0 100% 0 0);
+    animation: reveal 6s ease-in-out forwards infinite;
+}
+
+.animate-scale-reveal {
+    transform: scaleX(0);
+    transform-origin: left;
+    animation: scale-reveal 2s ease-in-out forwards;
+}
+
+.animate-fade-delayed {
+    opacity: 0;
+    animation: 5s fade-delayed 3s forwards;
+}
+
+
+  
+.animate-reveal-reverse {
+
+animation: reveal-reverse 6s ease-in-out forwards infinite;
+
+}
+
+.animate-book-open-right {
+    animation: bookOpenRight 6s ease-out forwards infinite;
+    transform-origin: right center; /* Hinge on the right */
+  }
+  .animate-book-open-left {
+    animation: bookOpenLeft 6s ease-out infinite;
+    transform-origin: left center;
+    opacity: 0;
+}
+
+  .animate-pop {
+    animation: popOpen 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+
+  .animate-scroll-open {
+    animation: scrollOpen 5s ease-out forwards;
+  }
+
+.animate-book-loop {
+    animation: loopDelay 8.52s infinite; /* Total cycle time: 8.52s */
+}
+
+@keyframes popOpen {
+    0% {
+      transform: scale(0);
+      opacity: 0;
+    }
+    60% {
+      transform: scale(1.2); /* Slightly overshoot for bounce effect */
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+  
+  @keyframes scrollOpen {
+    from {
+      clip-path: inset(0 50% 0 50%); /* Starts as a thin vertical line */
+    }
+    to {
+      clip-path: inset(0 0 0 0); /* Fully visible */
+    }
+  }
+
+  @keyframes bookOpenRight {
+    0% {
+        transform: perspective(1000px) rotateY(-90deg);
+        opacity: 0;
+      }
+      42% {
+        transform: perspective(1000px) rotateY(0deg);
+        opacity: 1;
+      }
+      100% {
+        transform: perspective(1000px) rotateY(0deg); /* Stay open */
+      }
+  }
+
+  @keyframes bookOpenLeft { 
+    from { 
+        transform: perspective(1000px) rotateY(90deg);
+        opacity: 0;
+    }
+    30% { 
+        transform: perspective(1000px) rotateY(90deg);
+        opacity: 0;
+    }
+    72% {
+        transform: perspective(1000px) rotateY(0deg);
+        opacity: 1;
+    }
+    to {
+        transform: perspective(1000px) rotateY(0deg);
+        opacity: 1;
+    }
+}
+
+
+/* Wrapper for infinite looping with delay */
+@keyframes loopDelay {
+    0%, 29.6% { opacity: 0; } /* 2.52s delay + 3s wait */
+    29.6%, 100% { opacity: 1; } /* Rest of the time visible */
+}
+
+@keyframes reveal-reverse {
+    from {
+      clip-path: inset(0 0 0 100%); /* Start hidden from the right */
+    }
+    83% {
+      clip-path: inset(0 0 0 0); /* Fully revealed */
+    }
+    to{
+        clip-path: inset(0 0 0 0); /* Fully revealed */
+    }
+  }
+
+@keyframes fade-delayed {
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes scale-reveal {
+    to {
+        transform: scaleX(1);
+    }
+}
+
+@keyframes reveal {
+    83% {
+        clip-path: inset(0 0 0 0);
+    }
+    to{
+        clip-path: inset(0 0 0 0);
+    }
+}
+
+@theme{
+--font-inter: "Inter", "sans-serif";
+--font-montserrat: "Montserrat", "sans-serif";
+--font-roboto: "Roboto", sans-serif; 
+--color-voicearchi_dark_background: #0d0d0dff;
+--color-voicearchi_purple_glow: #614ac9ff;
+--color-voicearchi_purple_bright: #9181edff;
+--color-voicearchi_purple_glow_dim: #584aa0ff;
+}
