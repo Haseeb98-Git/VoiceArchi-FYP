@@ -17,10 +17,11 @@ const Home = () =>{
       <div className="relative w-full max-w-full overflow-hidden bg-voicearchi_dark_background text-white">
 
         {/* Glowing Effects (Do Not Remove) */}
-        <div className="absolute -top-120 -right-50 w-[800px] h-[700px] bg-voicearchi_purple_glow/50 blur-[300px] rounded-full pointer-events-none"></div>
-        <div className="absolute top-180 -left-160 w-[800px] h-[700px] bg-voicearchi_purple_glow/50 blur-[300px] rounded-full pointer-events-none"></div>
+        <div className="absolute left-1/2 transform -translate-x-1/2 -top-60 w-[4000px] h-[800px] bg-voicearchi_purple_glow/20 blur-[300px] rounded-full pointer-events-none"></div>
+        <div className="absolute left-1/2 transform -translate-x-1/2 bottom-500 w-[4000px] h-[800px] bg-voicearchi_purple_glow/20 blur-[300px] rounded-full pointer-events-none"></div>
+        {/* <div className="absolute top-180 -left-160 w-[800px] h-[700px] bg-voicearchi_purple_glow/50 blur-[300px] rounded-full pointer-events-none"></div>
         <div className="absolute top-450 -right-160 w-[800px] h-[700px] bg-voicearchi_purple_glow/50 blur-[300px] rounded-full pointer-events-none"></div>
-        <div className="absolute top-750 -left-160 w-[800px] h-[700px] bg-voicearchi_purple_glow/50 blur-[300px] rounded-full pointer-events-none"></div>
+        <div className="absolute top-750 -left-160 w-[800px] h-[700px] bg-voicearchi_purple_glow/50 blur-[300px] rounded-full pointer-events-none"></div> */}
 
         {/* Page Containers */}
 
@@ -45,8 +46,8 @@ const Home = () =>{
       <>
             <div className="relative w-full h-screen max-w-full overflow-hidden bg-voicearchi_dark_background text-white">
             {/* Glowing Effects (Do Not Remove) */}
-            <div className="absolute -top-120 -right-50 w-[800px] h-[700px] bg-voicearchi_purple_glow/50 blur-[300px] rounded-full pointer-events-none"></div>
-            <div className="absolute top-180 -left-160 w-[800px] h-[700px] bg-voicearchi_purple_glow/50 blur-[300px] rounded-full pointer-events-none"></div>
+            <div className="absolute left-1/2 transform -translate-x-1/2 -top-60 w-[4000px] h-[800px] bg-voicearchi_purple_glow/20 blur-[300px] rounded-full pointer-events-none"></div>
+            <div className="absolute top-180 -left-160 w-[1000px] h-[800px] bg-voicearchi_purple_glow/0 blur-[1000px] rounded-full pointer-events-none"></div>
             {/* Chat box*/}
                 <button
                   onClick={() => setIsMoved(!isMoved)}
@@ -56,7 +57,7 @@ const Home = () =>{
                 </button>
 
                 <div
-                  className={`w-140 h-160 rounded-xl absolute left-1/2 transform -translate-x-1/2 top-30 bg-voicearchi_purple_glow/15 border border-white/20 transition-transform duration-500 ease-in-out ${
+                  className={`w-140 h-160 rounded-xl absolute left-1/2 transform -translate-x-1/2 top-30 bg-voicearchi_purple_glow/10 border border-white/20 transition-transform duration-500 ease-in-out ${
                     isMoved ? "translate-x-32" : ""
                   }`}
                 >
