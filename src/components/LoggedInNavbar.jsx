@@ -13,7 +13,7 @@ const LoggedInNavbar = () => {
     return (
         <>
         {/* Logged in Navbar */}
-        <nav className="fixed z-50 top-0 left-0 w-full h-22 flex items-center px-4 md:px-8 justify-between">
+        <nav className="brightness-150 fixed z-50 top-0 left-0 w-full h-22 flex items-center px-4 md:px-8 justify-between">
             <div className="flex items-center px-15">
             <img src={voicearchi_svg_logo} alt="VoiceArchi Logo" className="h-7 w-auto" />
             </div>
