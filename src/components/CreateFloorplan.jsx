@@ -18,7 +18,6 @@ const CreateFloorplan = () =>{
     const messagesEndRef = useRef(null); // Reference for auto-scroll
     const [isMoved, setIsMoved] = useState(false);
     const [constraintsWindowActive, setConstraintsWindowActive] = useState(false);
-    const hasRun = useRef(false);
     const userMessageCount = useRef(0); // ✅ Keeps value between re-renders
     const [userMessageTrigger, setUserMessageTrigger] = useState(false);
     const [userConstraints, setUserConstraints] = useState("");
@@ -27,6 +26,7 @@ const CreateFloorplan = () =>{
     const [isLoadingConstraints, setIsLoadingConstraints] = useState(false);
     const [isSystemTyping, setIsSystemTyping] = useState(false);
     const systemMessageCount = useRef(0);
+    const [isChatStarted, setIsChatStarted] = useState(false);
 
 
     const waitForCondition = (conditionFn, interval = 100) => {
@@ -49,9 +49,7 @@ const CreateFloorplan = () =>{
     };
 
     useEffect(() => {
-      if (hasRun.current) return;
-      hasRun.current = true;
-    
+      if (!isChatStarted) return;
       // Add initial "..." message
       setMessages((prev) => [
         ...prev,
@@ -61,7 +59,7 @@ const CreateFloorplan = () =>{
       // Generate speech
       const welcomeText = "Welcome to VoiceArchi. Please describe your floorplan idea. You can share information like the size, number of rooms, adjacency requirements etc.";
       generateSpeech(welcomeText);
-    }, []);
+    }, [isChatStarted]);
 
     useEffect(() => {
     
@@ -283,17 +281,19 @@ const CreateFloorplan = () =>{
     return (
     <>
                 {/* Chat box*/}
-
+            <button className={`rounded-full absolute left-1/2 transform -translate-x-1/2 top-1/2 -translate-y-1/2 text-2xl font-montserrat font-bold border-1 border-voicearchi_purple_bright py-2 px-8 z-50 hover:bg-voicearchi_purple_glow/60 ${isChatStarted? "hidden": ""}`}
+                    onClick={()=>{setIsChatStarted(true);}}>
+                Create New Floorplan
+            </button>
             <div
                 className={`w-140 h-160 rounded-xl absolute left-1/2 transform -translate-x-1/2 top-30 bg-voicearchi_purple_glow/10 border border-white/20 transition-transform duration-2000 ease-in-out ${
                 isMoved ? "translate-x-35" : ""
-                }`}
+                } ${isChatStarted ? "": "opacity-40 pointer-events-none"}`}
             >
                 {/*Chat title*/}
                 <h1 className="absolute left-1/2 transform -translate-x-1/2 text-white">
                 Chat
                 </h1>
-
                 
             {/* Chat Messages */}
             <div className="absolute top-12 left-0 w-full h-[500px]  p-4 flex flex-col space-y-2 scrollbar-thumb-rounded-full scrollbar-track-rounded-full scrollbar scrollbar-thumb-voicearchi_purple_glow_dim/15 scrollbar-track-white/0 scrollbar-hover:scrollbar-thumb-voicearchi_purple_glow_dim/30 overflow-y-scroll">
