@@ -1,87 +1,196 @@
 import React, {useState, useEffect, useRef} from "react";
 import mic_icon from "../assets/mic_icon.svg";
 import send_icon from "../assets/send_icon.svg";
-
+import axios from "axios";
 
 const CreateFloorplan = () =>{
     const [isRecording, setIsRecording] = useState(false);
     const [recordTime, setRecordTime] = useState(0);
-    const [audioBlob, setAudioBlob] = useState(null);
-    const [isProcessing, setIsProcessing] = useState(false); // Prevent early sending
+    const [hasGeneratedSpeech, setHasGeneratedSpeech] = useState(false);
     const mediaRecorderRef = useRef(null);
     const timerRef = useRef(null);
+    // messages is an array of objects, each object can have any number of properties that we can define dynamically, e.g. sender, text etc.
+    // javascript objects don't have to follow a strict schema like typescript or languages like Java.
     const [messages, setMessages] = useState([]); // Single list for both user and system messages
     const [inputMessage, setInputMessage] = useState("");
     const messagesEndRef = useRef(null); // Reference for auto-scroll
     const [isMoved, setIsMoved] = useState(false);
+    const hasRun = useRef(false);
+    const userMessageCount = useRef(0); // ✅ Keeps value between re-renders
+    const [userMessageTrigger, setUserMessageTrigger] = useState(false);
 
+    
 
     // Function to auto-scroll to the latest message
     const scrollToBottom = () => {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
-  
+
+    useEffect(() => {
+      if (hasRun.current) return;
+      hasRun.current = true;
+    
+      // Add initial "..." message
+      setMessages((prev) => [
+        ...prev,
+        { text: "...", sender: "system" },
+      ]);
+    
+      // Generate speech
+      const welcomeText = "Welcome to VoiceArchi. Please describe your floorplan idea. You can share information like the size, number of rooms, adjacency requirements etc.";
+      generateSpeech(welcomeText);
+    }, []);
+
+    useEffect(() => {
+      // Only run this effect if hasGeneratedSpeech is true
+      if (!hasGeneratedSpeech) return;
+      setHasGeneratedSpeech(false);
+      let welcomeText = "WWelcome to VoiceArchi. Please describe your floorplan idea. You can share information like the size, number of rooms, adjacency requirements etc.";
+      if (userMessageCount.current == 1){
+        welcomeText = "WWe have received your floorplan description. Please wait while the system extracts the necessary constraints for the floorplan creation.";
+      }
+      // Remove the "..." message
+      setMessages((prev) => prev.filter((msg) => msg.text !== "..."));
+    
+      let index = 0;
+    
+      // Function to type out the text character by character
+      const typeText = () => {
+        if (index < welcomeText.length) {
+          setMessages((prev) => {
+            const lastMessage = prev[prev.length - 1];
+    
+            // If the last message is from the system, append the next character
+            if (lastMessage?.sender === "system") {
+              return [
+                ...prev.slice(0, -1), // Keep all messages except the last one
+                {
+                  ...lastMessage,
+                  text: lastMessage.text + welcomeText.charAt(index),
+                },
+              ];
+            } else {
+              // If no system message exists, create a new one with the first character
+              return [
+                ...prev,
+                { text: welcomeText.charAt(index), sender: "system" },
+              ];
+            }
+          });
+    
+          index++;
+          setTimeout(typeText, 50); // Adjust typing speed here (lower = faster)
+        }
+      };
+    
+      // Start the typing animation
+      typeText();
+    }, [hasGeneratedSpeech]); // Run this effect only when hasGeneratedSpeech changes
+    const generateSpeech = async (speechText) => {
+      const formData = new FormData();
+      formData.append("text", speechText);
+    
+      try {
+        const response = await fetch("http://localhost:8000/tts", {
+          method: "POST",
+          body: formData,
+        });
+    
+        if (!response.ok) throw new Error("Failed to generate speech");
+        
+        const audioBlob = await response.blob();
+        const audioObjectUrl = URL.createObjectURL(audioBlob);
+    
+        // ✅ Play the audio without UI controls
+        const audio = new Audio(audioObjectUrl);
+        // Add an event listener for when the audio starts playing
+        audio.onplay = () => {
+          setHasGeneratedSpeech(true); // Set state only after audio starts playing
+        };
+        audio.play();
+      } catch (error) {
+        console.error("Error:", error);
+      }
+    };
     // Scroll to bottom whenever messages change
     useEffect(() => {
       scrollToBottom();
     }, [messages]);
 
-
+    useEffect(()=>{
+        if (userMessageCount.current == 1){
+          // Implement logic for handling user's given constraints
+          setMessages((prev) => [...prev, { text: "...", sender: "system" }]);
+          generateSpeech("We have received your floorplan description. Please wait while the system extracts the necessary constraints for the floorplan creation.");
+        }
+    }, [userMessageTrigger]);
     const recordMessage = async () => {
       if (!isRecording) {
-        // Start Recording
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          const mediaRecorder = new MediaRecorder(stream);
-          mediaRecorderRef.current = mediaRecorder;
-          const audioChunks = [];
-    
-          mediaRecorder.ondataavailable = (event) => {
-            audioChunks.push(event.data);
-          };
-    
-          mediaRecorder.onstop = async () => {
-            const audioBlob = new Blob(audioChunks, { type: "audio/wav" });
-            setAudioBlob(audioBlob);
-    
-            // Send the message immediately after stopping
-            const audioURL = URL.createObjectURL(audioBlob);
-            setMessages((prev) => [...prev, { audio: audioURL, sender: "user" }]);
-    
-            // Create a download link and trigger download
-            const downloadLink = document.createElement("a");
-            downloadLink.href = audioURL;
-            downloadLink.download = `recording_${Date.now()}.wav`;
-            document.body.appendChild(downloadLink);
-            downloadLink.click();
-            document.body.removeChild(downloadLink);
-    
-            // Simulate system response
-            setTimeout(() => {
-              setMessages((prev) => [...prev, { text: "Audio received!", sender: "system" }]);
-            }, 1000);
-          };
-    
-          mediaRecorder.start();
-          setIsRecording(true);
-          setRecordTime(0);
-    
-          // Start Timer
-          timerRef.current = setInterval(() => {
-            setRecordTime((prev) => prev + 1);
-          }, 1000);
-        } catch (error) {
-          console.error("Error accessing microphone:", error);
-        }
-      } else {
-        // Stop Recording and Send Message
-        mediaRecorderRef.current?.stop();
-        setIsRecording(false);
-        setRecordTime(0);
-        clearInterval(timerRef.current);
-      }
-    };
+          try {
+              const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+              const mediaRecorder = new MediaRecorder(stream);
+              mediaRecorderRef.current = mediaRecorder;
+              const audioChunks = [];
+  
+              mediaRecorder.ondataavailable = (event) => {
+                  audioChunks.push(event.data);
+              };
+  
+              mediaRecorder.onstop = async () => {
+                  const audioBlob = new Blob(audioChunks, { type: "audio/wav" });
+                  const audioFile = new File([audioBlob], "recording.wav", { type: "audio/wav" });
+                
+                  // Create a download link
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(audioBlob);
+                a.download = "recording.wav";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(a.href); // Free up memory
 
+                  const formData = new FormData();
+                  formData.append("file", audioFile);
+  
+                  try {
+                      const response = await axios.post("http://127.0.0.1:8000/transcribe", formData, {
+                          headers: {
+                              "Content-Type": "multipart/form-data",
+                          },
+                      });
+  
+                      if (response.data.text) {
+                          setMessages((prev) => prev.filter((msg) => msg.text !== "..."));
+                          setMessages((prev) => [...prev, { text: response.data.text, sender: "user" }]);
+                          userMessageCount.current += 1;
+                          setUserMessageTrigger(true);
+                      }
+                  } catch (error) {
+                      console.error("Error sending audio:", error);
+                      setMessages((prev) => [...prev, { text: "Failed to transcribe audio.", sender: "system" }]);
+                  }
+              };
+  
+              mediaRecorder.start();
+              setIsRecording(true);
+              setRecordTime(0);
+  
+              timerRef.current = setInterval(() => {
+                  setRecordTime((prev) => prev + 1);
+              }, 1000);
+          } catch (error) {
+              console.error("Error accessing microphone:", error);
+          }
+      } else {
+          mediaRecorderRef.current?.stop();
+          setMessages((prev) => [...prev, { text: "...", sender: "user" }]);
+          setIsRecording(false);
+          setRecordTime(0);
+          clearInterval(timerRef.current);
+      }
+  };
+  
+  
     const sendMessage = () => {
       if (isRecording) {
         recordMessage(); // Stop recording (it will automatically send)
