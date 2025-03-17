@@ -20,6 +20,11 @@
 }
 
 
+.rotate-center {
+  animation: rotateAnimation 120s linear infinite; /* Adjust duration as needed */
+  transform-origin: center;
+}
+
   
 .animate-reveal-reverse {
 
@@ -47,6 +52,15 @@ animation: reveal-reverse 6s ease-in-out forwards infinite;
 
 .animate-book-loop {
     animation: loopDelay 8.52s infinite; /* Total cycle time: 8.52s */
+}
+
+@keyframes rotateAnimation {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes popOpen {
