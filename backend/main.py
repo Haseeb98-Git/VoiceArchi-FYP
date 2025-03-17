@@ -1,8 +1,17 @@
-from fastapi import FastAPI, File, UploadFile, Form
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from openai import OpenAI
+from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 import io
+import requests
+import json
+from voicearchi_schemas import voiceArchi_json_schema
+
+
+openai_api_key = "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"
+openrouter_api_key = "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"
+openrouter_models = [("anthropic/claude-3.5-haiku","Anthropic"), ("mistralai/mistral-small-24b-instruct-2501","Mistral"), ("deepseek/deepseek-r1-distill-qwen-32b", "Fireworks"), ("google/gemini-2.0-flash-001", "Google AI Studio")]
 
 app = FastAPI()
 
@@ -16,7 +25,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-openai_api_key = "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"
 client = OpenAI(api_key=openai_api_key)
 
 @app.post("/transcribe")
@@ -55,3 +63,56 @@ async def generate_speech(text: str = Form(...)):
     
     except Exception as e:
         return {"error": str(e)}
+    
+class FloorplanRequest(BaseModel):
+    user_floorplan_description: str
+
+@app.post("/extract_constraints")
+async def extract_constraints(request: FloorplanRequest):
+    prompt = f"For this text, extract constraints from it and give me result in JSON:\n\"{request.user_floorplan_description}\"\n {voiceArchi_json_schema}"
+
+    response = requests.post(
+        url="https://openrouter.ai/api/v1/chat/completions",
+        headers={
+            "Authorization": f"Bearer {openrouter_api_key}",
+            "Content-Type": "application/json"
+        },
+        json={
+            "model": openrouter_models[3][0],
+            "messages": [
+                {"role": "user", "content": prompt}
+            ],
+            "provider": {
+                "order": [openrouter_models[3][1], openrouter_models[3][1]],
+                "allow_fallbacks": False
+            },
+        }
+    )
+
+    print(f"Status Code: {response.status_code}")  # Debugging
+    print(f"Response Text: {response.text}")  # Print the full response
+
+    try:
+        response_data = response.json()  # Attempt to parse JSON response
+        if "choices" not in response_data:
+            raise HTTPException(status_code=500, detail="Invalid response format from OpenRouter")
+        
+        llm_response = response_data["choices"][0]["message"]["content"]
+
+        def extract_json(text):
+            start = text.find("{")
+            end = text.rfind("}")
+            if start != -1 and end != -1 and start < end:
+                return text[start:end+1]  
+            return None
+
+        extracted_json = extract_json(llm_response)
+        if extracted_json:
+            return json.loads(extracted_json)
+        else:
+            raise HTTPException(status_code=400, detail="Could not extract JSON from response")
+    
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail="Failed to parse JSON response from OpenRouter")
+
+    # Run using: uvicorn main:app --host 0.0.0.0 --port 8000 --reload

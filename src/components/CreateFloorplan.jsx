@@ -2,6 +2,8 @@ import React, {useState, useEffect, useRef} from "react";
 import mic_icon from "../assets/mic_icon.svg";
 import send_icon from "../assets/send_icon.svg";
 import axios from "axios";
+import { DotLottieReact } from '@lottiefiles/dotlottie-react';
+import JsonViewer from "./JsonViewer";
 
 const CreateFloorplan = () =>{
     const [isRecording, setIsRecording] = useState(false);
@@ -15,10 +17,30 @@ const CreateFloorplan = () =>{
     const [inputMessage, setInputMessage] = useState("");
     const messagesEndRef = useRef(null); // Reference for auto-scroll
     const [isMoved, setIsMoved] = useState(false);
+    const [constraintsWindowActive, setConstraintsWindowActive] = useState(false);
     const hasRun = useRef(false);
     const userMessageCount = useRef(0); // ✅ Keeps value between re-renders
     const [userMessageTrigger, setUserMessageTrigger] = useState(false);
+    const [userConstraints, setUserConstraints] = useState("");
+    const [extractedData, setExtractedData] = useState(null);
+    const [error, setError] = useState(null);
+    const [isLoadingConstraints, setIsLoadingConstraints] = useState(false);
+    const [isSystemTyping, setIsSystemTyping] = useState(false);
+    const systemMessageCount = useRef(0);
 
+
+    const waitForCondition = (conditionFn, interval = 100) => {
+      return new Promise((resolve) => {
+        const checkCondition = () => {
+          if (conditionFn()) {
+            resolve(); // ✅ Condition met, resolve the promise
+          } else {
+            setTimeout(checkCondition, interval); // ⏳ Retry after delay
+          }
+        };
+        checkCondition();
+      });
+    };
     
 
     // Function to auto-scroll to the latest message
@@ -42,44 +64,48 @@ const CreateFloorplan = () =>{
     }, []);
 
     useEffect(() => {
+    
       // Only run this effect if hasGeneratedSpeech is true
       if (!hasGeneratedSpeech) return;
       setHasGeneratedSpeech(false);
+    
       let welcomeText = "WWelcome to VoiceArchi. Please describe your floorplan idea. You can share information like the size, number of rooms, adjacency requirements etc.";
-      if (userMessageCount.current == 1){
+      if (userMessageCount.current == 1) {
         welcomeText = "WWe have received your floorplan description. Please wait while the system extracts the necessary constraints for the floorplan creation.";
       }
-      // Remove the "..." message
-      setMessages((prev) => prev.filter((msg) => msg.text !== "..."));
+      if (userMessageCount.current == 1 && systemMessageCount.current == 3 && !isLoadingConstraints) {
+        welcomeText = "YYour constraints have successfully been extracted. Would you like to resolve any ambiguities? Or you can choose to finalize the floorplan.";
+      }
+    
+
     
       let index = 0;
     
       // Function to type out the text character by character
       const typeText = () => {
+        setIsSystemTyping(true);
         if (index < welcomeText.length) {
           setMessages((prev) => {
             const lastMessage = prev[prev.length - 1];
-    
+            // Remove the "..." message
+            setMessages((prev) => prev.filter((msg) => msg.text !== "..."));
             // If the last message is from the system, append the next character
-            if (lastMessage?.sender === "system") {
-              return [
-                ...prev.slice(0, -1), // Keep all messages except the last one
-                {
-                  ...lastMessage,
-                  text: lastMessage.text + welcomeText.charAt(index),
-                },
-              ];
-            } else {
-              // If no system message exists, create a new one with the first character
-              return [
-                ...prev,
-                { text: welcomeText.charAt(index), sender: "system" },
-              ];
-            }
+          // 🛠️ Fix: Create a new message if the last one is "..." or not from system
+          if (lastMessage?.sender === "system" && lastMessage.text !== "...") {
+            return [
+              ...prev.slice(0, -1),
+              { ...lastMessage, text: lastMessage.text + welcomeText.charAt(index) },
+            ];
+          } else {
+            return [...prev, { text: welcomeText.charAt(index), sender: "system" }];
+          }
           });
     
           index++;
           setTimeout(typeText, 50); // Adjust typing speed here (lower = faster)
+        } else {
+          // ✅ Only set isSystemTyping to false AFTER the last character is typed
+          setIsSystemTyping(false);
         }
       };
     
@@ -100,14 +126,21 @@ const CreateFloorplan = () =>{
         
         const audioBlob = await response.blob();
         const audioObjectUrl = URL.createObjectURL(audioBlob);
-    
         // ✅ Play the audio without UI controls
         const audio = new Audio(audioObjectUrl);
         // Add an event listener for when the audio starts playing
         audio.onplay = () => {
+          systemMessageCount.current += 1;
           setHasGeneratedSpeech(true); // Set state only after audio starts playing
+          if (userMessageCount.current == 1 && systemMessageCount.current == 2){
+            setIsMoved(true);
+            setConstraintsWindowActive(true);
+            setIsLoadingConstraints(true);
+            extractConstraints();
+          }
         };
         audio.play();
+        
       } catch (error) {
         console.error("Error:", error);
       }
@@ -116,6 +149,41 @@ const CreateFloorplan = () =>{
     useEffect(() => {
       scrollToBottom();
     }, [messages]);
+
+    const extractConstraints = async () => {
+      try {
+          const response = await axios.post("http://127.0.0.1:8000/extract_constraints", {
+              user_floorplan_description: userConstraints
+          });
+
+          setExtractedData(response.data);
+          setError(null);
+          setIsLoadingConstraints(false);
+        
+      } catch (err) {
+          console.error("Error:", err);
+          setError("Failed to extract constraints.");
+      }
+  };
+
+  useEffect(() => {
+    if (!isLoadingConstraints && userMessageCount.current == 1 && systemMessageCount.current == 2) {
+      (async () => {
+        await waitForCondition(() => !isSystemTyping); // ⏳ Wait until `isSystemTyping` is false
+  
+        // ✅ Now that `isSystemTyping` is false, proceed
+        setMessages((prev) => [
+          ...prev,
+          { text: "...", sender: "system" },
+        ]);
+  
+        generateSpeech(
+          "Your constraints have successfully been extracted. Would you like to resolve any ambiguities? Or you can choose to finalize the floorplan."
+        );
+      })();
+    }
+  }, [isLoadingConstraints, isSystemTyping]); // 🔥 Added `isSystemTyping` to dependencies
+  
 
     useEffect(()=>{
         if (userMessageCount.current == 1){
@@ -162,6 +230,7 @@ const CreateFloorplan = () =>{
                       if (response.data.text) {
                           setMessages((prev) => prev.filter((msg) => msg.text !== "..."));
                           setMessages((prev) => [...prev, { text: response.data.text, sender: "user" }]);
+                          setUserConstraints(response.data.text);
                           userMessageCount.current += 1;
                           setUserMessageTrigger(true);
                       }
@@ -213,18 +282,11 @@ const CreateFloorplan = () =>{
 
     return (
     <>
-            <button
-                onClick={() => setIsMoved(!isMoved)}
-                className="hidden absolute top-20 left-80 px-4 py-2 bg-white text-black rounded-md"
-            >
-                Move Chat Box
-            </button>
-
                 {/* Chat box*/}
 
             <div
-                className={`w-140 h-160 rounded-xl absolute left-1/2 transform -translate-x-1/2 top-30 bg-voicearchi_purple_glow/10 border border-white/20 transition-transform duration-500 ease-in-out ${
-                isMoved ? "translate-x-32" : ""
+                className={`w-140 h-160 rounded-xl absolute left-1/2 transform -translate-x-1/2 top-30 bg-voicearchi_purple_glow/10 border border-white/20 transition-transform duration-2000 ease-in-out ${
+                isMoved ? "translate-x-35" : ""
                 }`}
             >
                 {/*Chat title*/}
@@ -234,7 +296,7 @@ const CreateFloorplan = () =>{
 
                 
             {/* Chat Messages */}
-            <div className="absolute top-12 left-0 w-full h-[500px] overflow-y-auto p-4 flex flex-col space-y-2">
+            <div className="absolute top-12 left-0 w-full h-[500px]  p-4 flex flex-col space-y-2 scrollbar-thumb-rounded-full scrollbar-track-rounded-full scrollbar scrollbar-thumb-voicearchi_purple_glow_dim/15 scrollbar-track-white/0 scrollbar-hover:scrollbar-thumb-voicearchi_purple_glow_dim/30 overflow-y-scroll">
                 {messages.map((msg, index) => (
                 <div 
                 key={index} 
@@ -279,7 +341,28 @@ const CreateFloorplan = () =>{
 
                 
             </div>
+            {/*Constraints and floorplan drawing window*/}
+            <div
+                className={`w-140 h-160 rounded-xl absolute left-85 top-30 animate-fade-delayed bg-voicearchi_purple_glow/10 border border-white/20 transition-transform duration-500 ease-in-out ${
+                !constraintsWindowActive ? "hidden" : ""
+                }`}
+            >
+                {/*Window title*/}
+                <h1 className="absolute left-1/2 transform -translate-x-1/2 text-white">
+                Extracted Constraints
+                </h1>
 
+                <DotLottieReact
+                  className={`w-100 h-auto top-50 absolute left-1/2 transform -translate-x-1/2 invert ${!isLoadingConstraints ? "hidden": ""}`}
+                  src="https://lottie.host/b3446f2b-ac55-4666-afc8-439b14425a7a/qMMIJWHNSc.lottie"
+                  loop
+                  autoplay
+                />
+                <div className="w-120 h-140 absolute left-1/2 transform -translate-x-1/2 top-10 overflow-auto p-2 text-white rounded-md scrollbar-thumb-rounded-full scrollbar-track-rounded-full scrollbar scrollbar-thumb-voicearchi_purple_glow_dim/15 scrollbar-track-white/0 scrollbar-hover:scrollbar-thumb-voicearchi_purple_glow_dim/30 overflow-y-scroll">
+                  {error && <p style={{ color: "red" }}>{error}</p>}
+                  {extractedData && <JsonViewer data={extractedData} />}
+                </div>   
+            </div>
       </>
 
     );

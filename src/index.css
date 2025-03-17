@@ -2,7 +2,10 @@
 @import url("https://fonts.googleapis.com/css2?family=Roboto&display=swap");
 @import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
 @import "tailwindcss";
-
+@plugin 'tailwind-scrollbar' {
+  nocompatible: true;
+  preferredStrategy: 'pseudoelements';
+}
 .animate-reveal {
     clip-path: inset(0 100% 0 0);
     animation: reveal 6s ease-in-out forwards infinite;
@@ -15,8 +18,8 @@
 }
 
 .animate-fade-delayed {
-    opacity: 0;
-    animation: 5s fade-delayed 3s forwards;
+  opacity: 0;
+  animation: fade-delayed 2s ease-in-out 1s forwards; 
 }
 
 
@@ -138,7 +141,10 @@ animation: reveal-reverse 6s ease-in-out forwards infinite;
     }
   }
 
-@keyframes fade-delayed {
+  @keyframes fade-delayed {
+    from {
+        opacity: 0;
+    }
     to {
         opacity: 1;
     }
