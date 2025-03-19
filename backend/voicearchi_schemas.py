@@ -203,3 +203,11 @@ Here is the description of the JSON schema:
 
 
 """
+
+ambiguity_resolution_user_choice_schema = """
+Here is the JSON schema format:
+
+   key: user_choice
+   type: string
+   options: ["finalize_floorplan", "resolve_ambiguities", "the_user_did_not_answer"]
+"""

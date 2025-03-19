@@ -27,6 +27,10 @@ const CreateFloorplan = () =>{
     const [isSystemTyping, setIsSystemTyping] = useState(false);
     const systemMessageCount = useRef(0);
     const [isChatStarted, setIsChatStarted] = useState(false);
+    const [generalAmbiguities, setGeneralAmbiguities] = useState(null);
+    const [sizeAmbiguities, setSizeAmbiguities] = useState(null);
+    const userChoiceAR = useRef("");
+    const userResponseForAmbiguities = useRef("");
 
 
     const waitForCondition = (conditionFn, interval = 100) => {
@@ -73,6 +77,29 @@ const CreateFloorplan = () =>{
       }
       if (userMessageCount.current == 1 && systemMessageCount.current == 3 && !isLoadingConstraints) {
         welcomeText = "YYour constraints have successfully been extracted. Would you like to resolve any ambiguities? Or you can choose to finalize the floorplan.";
+      }
+      if (userMessageCount.current == 2 && systemMessageCount.current == 4 && !isLoadingConstraints){
+          if (userChoiceAR.current == "resolve_ambiguities"){
+            if (Object.values(generalAmbiguities).length > 0){
+              let ambiguities_string = Object.values(generalAmbiguities).join("\n");
+              welcomeText = "SSure, lets resolve the following ambiguities: \n" + ambiguities_string;
+            }
+          }
+      }
+      if (userMessageCount.current == 3 && systemMessageCount.current == 5 && !isLoadingConstraints){
+        if (userChoiceAR.current == "resolve_ambiguities"){
+            if (Object.values(sizeAmbiguities).length > 0){
+              let ambiguities_string = Object.values(sizeAmbiguities).join("\n");
+              welcomeText = "GGot it, now lets resolve the following ambiguities: \n" + ambiguities_string;
+            }
+            else{
+              welcomeText = "You have no more ambiguities left. Your floorplan is being finalized.";
+            }
+        }
+      }
+      
+      if (userMessageCount.current == 4 && systemMessageCount.current == 6){
+        welcomeText = "PPlease wait while we update your constraints based upon the given information.";
       }
     
 
@@ -136,6 +163,11 @@ const CreateFloorplan = () =>{
             setIsLoadingConstraints(true);
             extractConstraints();
           }
+          if (userMessageCount.current == 4 && userChoiceAR.current == "resolve_ambiguities"){
+            setIsLoadingConstraints(true);
+            setExtractedData(null);
+            extractConstraints();
+          }
         };
         audio.play();
         
@@ -154,7 +186,9 @@ const CreateFloorplan = () =>{
               user_floorplan_description: userConstraints
           });
 
-          setExtractedData(response.data);
+          setExtractedData(response.data.extracted_constraints);
+          setGeneralAmbiguities(response.data.general_ambiguities);
+          setSizeAmbiguities(response.data.size_ambiguities);
           setError(null);
           setIsLoadingConstraints(false);
         
@@ -184,12 +218,52 @@ const CreateFloorplan = () =>{
   
 
     useEffect(()=>{
+        if (!userMessageTrigger) return;
         if (userMessageCount.current == 1){
           // Implement logic for handling user's given constraints
           setMessages((prev) => [...prev, { text: "...", sender: "system" }]);
           generateSpeech("We have received your floorplan description. Please wait while the system extracts the necessary constraints for the floorplan creation.");
+          setUserMessageTrigger(false);
         }
+        if (userMessageCount.current == 2){
+          if (userChoiceAR.current == "resolve_ambiguities"){
+              if (Object.values(generalAmbiguities).length > 0){
+                let ambiguities_string = Object.values(generalAmbiguities).join("\n");
+                console.log(generalAmbiguities);
+                setMessages((prev) => [...prev, { text: "...", sender: "system" }]);
+                generateSpeech("Sure, lets resolve the following ambiguities: \n" + ambiguities_string);
+                setUserMessageTrigger(false);
+              }
+
+          }
+        }
+        if (userMessageCount.current == 3){
+          if (userChoiceAR.current == "resolve_ambiguities"){
+              if (Object.values(sizeAmbiguities).length > 0){
+                let ambiguities_string = Object.values(sizeAmbiguities).join("\n");
+                console.log(sizeAmbiguities);
+                setMessages((prev) => [...prev, { text: "...", sender: "system" }]);
+                generateSpeech("Got it, now lets resolve the following ambiguities: \n" + ambiguities_string);
+                setUserMessageTrigger(false);
+              }
+              else{
+                generateSpeech("You have no more ambiguities left. Your floorplan is being finalized.");
+                setUserMessageTrigger(false);
+              }
+
+          }
+        }
+        if (userMessageCount.current == 4){
+          if (userChoiceAR.current == "resolve_ambiguities"){
+            // Implement logic for handling user's given constraints
+            setMessages((prev) => [...prev, { text: "...", sender: "system" }]);
+            generateSpeech("Please wait while we update your constraints based upon the given information.");
+            setUserMessageTrigger(false);
+          }
+        }
+
     }, [userMessageTrigger]);
+
     const recordMessage = async () => {
       if (!isRecording) {
           try {
@@ -207,17 +281,17 @@ const CreateFloorplan = () =>{
                   const audioFile = new File([audioBlob], "recording.wav", { type: "audio/wav" });
                 
                   // Create a download link
-                const a = document.createElement("a");
-                a.href = URL.createObjectURL(audioBlob);
-                a.download = "recording.wav";
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(a.href); // Free up memory
+                // const a = document.createElement("a");
+                // a.href = URL.createObjectURL(audioBlob);
+                // a.download = "recording.wav";
+                // document.body.appendChild(a);
+                // a.click();
+                // document.body.removeChild(a);
+                // URL.revokeObjectURL(a.href); // Free up memory
 
                   const formData = new FormData();
                   formData.append("file", audioFile);
-  
+                  formData.append("message_count", userMessageCount.current); // Append user message count
                   try {
                       const response = await axios.post("http://127.0.0.1:8000/transcribe", formData, {
                           headers: {
@@ -225,17 +299,61 @@ const CreateFloorplan = () =>{
                           },
                       });
   
-                      if (response.data.text) {
+                      if (response.data.text && userMessageCount.current == 0) {
                           setMessages((prev) => prev.filter((msg) => msg.text !== "..."));
                           setMessages((prev) => [...prev, { text: response.data.text, sender: "user" }]);
                           setUserConstraints(response.data.text);
                           userMessageCount.current += 1;
                           setUserMessageTrigger(true);
                       }
+                      if (response.data.text && (userMessageCount.current == 2 || userMessageCount.current == 3)) {
+                        setMessages((prev) => prev.filter((msg) => msg.text !== "..."));
+                        setMessages((prev) => [...prev, { text: response.data.text, sender: "user" }]);
+                        userResponseForAmbiguities.current += "\n" + response.data.text;
+                        userMessageCount.current += 1;
+                        if (userMessageCount.current == 3){
+                          setUserConstraints(userConstraints + userResponseForAmbiguities.current);
+                        }
+                        setUserMessageTrigger(true);
+                      }
+                      if (response.data.text && userMessageCount.current == 1) {
+                          if (response.data.user_choice_json){
+                            if (response.data.user_choice_json.user_choice == "resolve_ambiguities"){
+                                setMessages((prev) => prev.filter((msg) => msg.text !== "..."));
+                                setMessages((prev) => [...prev, { text: response.data.text, sender: "user" }]);
+                                userMessageCount.current += 1;
+                                setUserMessageTrigger(true);
+                                userChoiceAR.current = response.data.user_choice_json.user_choice;
+                                console.log("The user asked to resolve ambiguities.")
+                                console.log(response.data.user_choice_json);
+                            }
+                            else if (response.data.user_choice_json.user_choice == "finalize_floorplan"){
+                              setMessages((prev) => prev.filter((msg) => msg.text !== "..."));
+                              setMessages((prev) => [...prev, { text: response.data.text, sender: "user" }]);
+                              userMessageCount.current += 1;
+                              setUserMessageTrigger(true);
+                              userChoiceAR.current = response.data.user_choice_json.user_choice;
+                              console.log("The user asked to finalize the floorplan.")
+                              console.log(response.data.user_choice_json);
+                            }
+                            else if (response.data.user_choice_json.user_choice == "the_user_did_not_answer"){
+                              setMessages((prev) => prev.filter((msg) => msg.text !== "..."));
+                              setMessages((prev) => [...prev, { text: response.data.text, sender: "user" }]);
+                              // the userMessageCount remains the same because the user did not answer the question.
+                              //userMessageCount.current += 1;
+                              setUserMessageTrigger(true);
+                              userChoiceAR.current = response.data.user_choice_json.user_choice;
+                              console.log("The user did not answer the question.")
+                              console.log(response.data.user_choice_json);
+                            }
+                          }
+                      }
+
                   } catch (error) {
                       console.error("Error sending audio:", error);
                       setMessages((prev) => [...prev, { text: "Failed to transcribe audio.", sender: "system" }]);
                   }
+
               };
   
               mediaRecorder.start();
@@ -269,10 +387,6 @@ const CreateFloorplan = () =>{
     
       setMessages((prev) => [...prev, { text: inputMessage, sender: "user" }]);
     
-      // Simulate system response
-      setTimeout(() => {
-        setMessages((prev) => [...prev, { text: "Hello, how can I help you?", sender: "system" }]);
-      }, 1000);
     
       setInputMessage("");
     };
