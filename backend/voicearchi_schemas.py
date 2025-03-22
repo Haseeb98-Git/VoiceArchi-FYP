@@ -104,11 +104,11 @@ Here is the description of the JSON schema:
     items:
        properties:
           name:
-             description: Room name with index. Pick a room name from the options list given below and add "_index" to it. Where index is an integer.
+             description: Room name with index. Pick a room name from the options list given below and add "_index" to it. Where index is an integer. Strictly follow these names from the options.
              
              type: string
              
-             options: ["bedroom", "livingroom", "kitchen", "bathroom", "drawingroom", "studyroom", "diningroom", "pantry", "guestroom", "laundryroom", "storeroom",
+             options: ["bedroom", "masterbedroom", "livingroom", "kitchen", "bathroom", "drawingroom", "studyroom", "diningroom", "pantry", "guestroom", "laundryroom", "storeroom",
                        "attic", "homeoffice", "gym", "library", "sunroom", "utilityroom", "workshop", "cloakroom", "foyer"]
              
              examples: ["bedroom_1", "bedroom_2", "kitchen_1", "diningroom_2"]
@@ -127,7 +127,7 @@ Here is the description of the JSON schema:
 		items:
 			properties:
 				  name:
-						 description: The name of the outdoor area.
+						 description: The name of the outdoor area. Note: BALCONY is not an outdoor area.
 				     type: string  
 				     
 				     options: ["patio","garden","pool", "driveway", "lawn", "playrgound", "nursery", "garage", "porch"]
@@ -206,8 +206,6 @@ Here is the description of the JSON schema:
 
 ambiguity_resolution_user_choice_schema = """
 Here is the JSON schema format:
-
-   key: user_choice
-   type: string
-   options: ["finalize_floorplan", "resolve_ambiguities", "the_user_did_not_answer"]
+   # select an option from one of the following options and store into the key user_choice.
+   user_choice: ["finalize_floorplan", "resolve_ambiguities", "the_user_did_not_answer"]
 """
