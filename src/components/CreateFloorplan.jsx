@@ -20,7 +20,8 @@ const CreateFloorplan = () =>{
     const [constraintsWindowActive, setConstraintsWindowActive] = useState(false);
     const userMessageCount = useRef(0); // ✅ Keeps value between re-renders
     const [userMessageTrigger, setUserMessageTrigger] = useState(false);
-    const [userConstraints, setUserConstraints] = useState("");
+    //const [userConstraints, setUserConstraints] = useState("");
+    const userConstraints = useRef("");
     const [extractedData, setExtractedData] = useState(null);
     const [error, setError] = useState(null);
     const [isLoadingConstraints, setIsLoadingConstraints] = useState(false);
@@ -30,8 +31,12 @@ const CreateFloorplan = () =>{
     const [generalAmbiguities, setGeneralAmbiguities] = useState(null);
     const [sizeAmbiguities, setSizeAmbiguities] = useState(null);
     const userChoiceAR = useRef("");
-    const userResponseForAmbiguities = useRef("");
-
+    const userResponseForGeneralAmbiguities = useRef("");
+    const userResponseForSizeAmbiguities = useRef("");
+    const [activeTab, setActiveTab] = useState("constraints"); // "constraints" or "floorplan"
+    const [isFinalizedFloorplan, setIsFinalizedFloorplan] = useState(false);
+    const [floorplanImage, setFloorplanImage] = useState(null); // Store image URL
+    const [isLoadingFinalization, setIsLoadingFinalization] = useState(false);
 
     const waitForCondition = (conditionFn, interval = 100) => {
       return new Promise((resolve) => {
@@ -46,6 +51,34 @@ const CreateFloorplan = () =>{
       });
     };
     
+    const handleFinalizeFloorplan = async () => {
+      setIsLoadingFinalization(true);
+  
+      try {
+          console.log("Finalizing Floorplan with:", extractedData); // Debugging
+  
+          const response = await axios.post(
+              "http://localhost:8000/drawing",
+              { user_constraints: extractedData },  // ✅ FIXED: Changed key name
+              {
+                  headers: {
+                      "Content-Type": "application/json",
+                  },
+                  responseType: "blob",
+              }
+          );
+  
+          const imageURL = URL.createObjectURL(response.data);
+          setFloorplanImage(imageURL);
+          setIsFinalizedFloorplan(true);
+      } catch (error) {
+          console.error("Error finalizing floorplan:", error.response ? error.response.data : error);
+      }
+  
+      setIsLoadingFinalization(false);
+  };
+  
+  
 
     // Function to auto-scroll to the latest message
     const scrollToBottom = () => {
@@ -71,18 +104,24 @@ const CreateFloorplan = () =>{
       if (!hasGeneratedSpeech) return;
       setHasGeneratedSpeech(false);
     
-      let welcomeText = "WWelcome to VoiceArchi. Please describe your floorplan idea. You can share information like the size, number of rooms, adjacency requirements etc.";
+      let systemMessageText = "WWelcome to VoiceArchi. Please describe your floorplan idea. You can share information like the size, number of rooms, adjacency requirements etc.";
       if (userMessageCount.current == 1) {
-        welcomeText = "WWe have received your floorplan description. Please wait while the system extracts the necessary constraints for the floorplan creation.";
+        systemMessageText = "WWe have received your floorplan description. Please wait while the system extracts the necessary constraints for the floorplan creation.";
       }
       if (userMessageCount.current == 1 && systemMessageCount.current == 3 && !isLoadingConstraints) {
-        welcomeText = "YYour constraints have successfully been extracted. Would you like to resolve any ambiguities? Or you can choose to finalize the floorplan.";
+        if (userChoiceAR.current == ""){
+        systemMessageText = "YYour constraints have successfully been extracted. Would you like to resolve any ambiguities? Or you can choose to finalize the floorplan.";
+        }
+        else{
+          systemMessageText = "WWould you like to see if there are more ambiguities? Or you can choose to finalize the floorplan.";
+          userChoiceAR.current = "";
+        }
       }
       if (userMessageCount.current == 2 && systemMessageCount.current == 4 && !isLoadingConstraints){
           if (userChoiceAR.current == "resolve_ambiguities"){
             if (Object.values(generalAmbiguities).length > 0){
               let ambiguities_string = Object.values(generalAmbiguities).join("\n");
-              welcomeText = "SSure, lets resolve the following ambiguities: \n" + ambiguities_string;
+              systemMessageText = "SSure, lets resolve the following ambiguities: \n" + ambiguities_string;
             }
           }
       }
@@ -90,16 +129,30 @@ const CreateFloorplan = () =>{
         if (userChoiceAR.current == "resolve_ambiguities"){
             if (Object.values(sizeAmbiguities).length > 0){
               let ambiguities_string = Object.values(sizeAmbiguities).join("\n");
-              welcomeText = "GGot it, now lets resolve the following ambiguities: \n" + ambiguities_string;
+              systemMessageText = "GGot it, now lets resolve the following ambiguities: \n" + ambiguities_string;
             }
             else{
-              welcomeText = "You have no more ambiguities left. Your floorplan is being finalized.";
+              systemMessageText = "YYou have no more ambiguities left. You can finalize your floorplan.";
             }
         }
       }
       
       if (userMessageCount.current == 4 && systemMessageCount.current == 6){
-        welcomeText = "PPlease wait while we update your constraints based upon the given information.";
+        if (Object.values(generalAmbiguities).length > 0 || Object.values(sizeAmbiguities).length > 0){
+           systemMessageText = "PPlease wait while we update your constraints based upon the given information.";
+        }
+        else{
+          systemMessageText = "YYou have no more ambiguities. You can now finalize your floorplan.";
+        }
+      }
+
+      if (userMessageCount.current == 4 && systemMessageCount.current == 7){
+        if (Object.values(generalAmbiguities).length > 0 || Object.values(sizeAmbiguities).length > 0){
+          systemMessageText = "PPlease wait while we update your constraints based upon the given information.";
+       }
+       else{
+         systemMessageText = "YYou have no more ambiguities. You can now finalize your floorplan.";
+       }
       }
     
 
@@ -109,7 +162,7 @@ const CreateFloorplan = () =>{
       // Function to type out the text character by character
       const typeText = () => {
         setIsSystemTyping(true);
-        if (index < welcomeText.length) {
+        if (index < systemMessageText.length) {
           setMessages((prev) => {
             const lastMessage = prev[prev.length - 1];
             // Remove the "..." message
@@ -119,10 +172,10 @@ const CreateFloorplan = () =>{
           if (lastMessage?.sender === "system" && lastMessage.text !== "...") {
             return [
               ...prev.slice(0, -1),
-              { ...lastMessage, text: lastMessage.text + welcomeText.charAt(index) },
+              { ...lastMessage, text: lastMessage.text + systemMessageText.charAt(index) },
             ];
           } else {
-            return [...prev, { text: welcomeText.charAt(index), sender: "system" }];
+            return [...prev, { text: systemMessageText.charAt(index), sender: "system" }];
           }
           });
     
@@ -137,6 +190,7 @@ const CreateFloorplan = () =>{
       // Start the typing animation
       typeText();
     }, [hasGeneratedSpeech]); // Run this effect only when hasGeneratedSpeech changes
+
     const generateSpeech = async (speechText) => {
       const formData = new FormData();
       formData.append("text", speechText);
@@ -164,9 +218,11 @@ const CreateFloorplan = () =>{
             extractConstraints();
           }
           if (userMessageCount.current == 4 && userChoiceAR.current == "resolve_ambiguities"){
-            setIsLoadingConstraints(true);
-            setExtractedData(null);
-            extractConstraints();
+            if (Object.values(generalAmbiguities).length != 0 || Object.values(sizeAmbiguities).length != 0){
+                setIsLoadingConstraints(true);
+                setExtractedData(null);
+                extractConstraints();
+            }
           }
         };
         audio.play();
@@ -183,7 +239,7 @@ const CreateFloorplan = () =>{
     const extractConstraints = async () => {
       try {
           const response = await axios.post("http://127.0.0.1:8000/extract_constraints", {
-              user_floorplan_description: userConstraints
+              user_floorplan_description: userConstraints.current
           });
 
           setExtractedData(response.data.extracted_constraints);
@@ -191,6 +247,14 @@ const CreateFloorplan = () =>{
           setSizeAmbiguities(response.data.size_ambiguities);
           setError(null);
           setIsLoadingConstraints(false);
+          console.log("usermessagecount: " + userMessageCount.current + " systemmessagecount: " + systemMessageCount.current);
+          console.log("sent the following user message: "+ userConstraints.current);
+          if (userChoiceAR.current == "resolve_ambiguities"){
+            if (Object.values(generalAmbiguities).length != 0 || Object.values(sizeAmbiguities).length != 0){
+                userMessageCount.current = 1;
+                systemMessageCount.current = 2;
+            }
+          }
         
       } catch (err) {
           console.error("Error:", err);
@@ -208,10 +272,38 @@ const CreateFloorplan = () =>{
           ...prev,
           { text: "...", sender: "system" },
         ]);
+        if(userChoiceAR.current == ""){
+          generateSpeech(
+            "Your constraints have successfully been extracted. Would you like to resolve any ambiguities? Or you can choose to finalize the floorplan."
+          );
+        }
+        else{
+          generateSpeech(
+            "Would you like to see if there are more ambiguities? Or you can choose to finalize the floorplan."
+          );
+        }
+      })();
+    }
+    if (!isLoadingConstraints && userMessageCount.current == 4 && systemMessageCount.current == 6) {
+      (async () => {
+        await waitForCondition(() => !isSystemTyping); // ⏳ Wait until `isSystemTyping` is false
   
-        generateSpeech(
-          "Your constraints have successfully been extracted. Would you like to resolve any ambiguities? Or you can choose to finalize the floorplan."
-        );
+        // ✅ Now that `isSystemTyping` is false, proceed
+        setMessages((prev) => [
+          ...prev,
+          { text: "...", sender: "system" },
+        ]);
+        console.log("yes executing");
+        if (Object.values(sizeAmbiguities) != 0 || Object.values(generalAmbiguities) != 0){
+            userMessageCount.current = 1;
+            systemMessageCount.current = 2;
+            generateSpeech("Would you like to see if there are more ambiguities? Or you can choose to finalize the floorplan.");
+        } 
+        else{
+          generateSpeech(
+            "You have no more ambiguities. You can finalize your floorplan."
+          );
+      }
       })();
     }
   }, [isLoadingConstraints, isSystemTyping]); // 🔥 Added `isSystemTyping` to dependencies
@@ -234,21 +326,33 @@ const CreateFloorplan = () =>{
                 generateSpeech("Sure, lets resolve the following ambiguities: \n" + ambiguities_string);
                 setUserMessageTrigger(false);
               }
+              else
+              {
+                userMessageCount.current = 3;
+                systemMessageCount.current = 4;
+              }
 
           }
         }
+
+          //this executes when we have found general ambiguities.
         if (userMessageCount.current == 3){
           if (userChoiceAR.current == "resolve_ambiguities"){
               if (Object.values(sizeAmbiguities).length > 0){
                 let ambiguities_string = Object.values(sizeAmbiguities).join("\n");
-                console.log(sizeAmbiguities);
                 setMessages((prev) => [...prev, { text: "...", sender: "system" }]);
                 generateSpeech("Got it, now lets resolve the following ambiguities: \n" + ambiguities_string);
                 setUserMessageTrigger(false);
               }
               else{
-                generateSpeech("You have no more ambiguities left. Your floorplan is being finalized.");
-                setUserMessageTrigger(false);
+                userMessageCount.current = 4;
+                systemMessageCount.current = 6;
+                if (Object.values(generalAmbiguities).length > 0){
+                  let additional_string = "\n(Some questions were asked to the user about the floorplan):\n Questions: " + Object.values(generalAmbiguities).join("\n")
+                                          + "\nAnswers: " + userResponseForGeneralAmbiguities.current + '\n';
+                  console.log("sent: " + userConstraints.current + additional_string);
+                  userConstraints.current = userConstraints.current + additional_string;
+                }
               }
 
           }
@@ -256,11 +360,19 @@ const CreateFloorplan = () =>{
         if (userMessageCount.current == 4){
           if (userChoiceAR.current == "resolve_ambiguities"){
             // Implement logic for handling user's given constraints
-            setMessages((prev) => [...prev, { text: "...", sender: "system" }]);
-            generateSpeech("Please wait while we update your constraints based upon the given information.");
-            setUserMessageTrigger(false);
+            if (Object.values(generalAmbiguities).length > 0 || Object.values(sizeAmbiguities).length > 0){
+                setMessages((prev) => [...prev, { text: "...", sender: "system" }]);
+                generateSpeech("Please wait while we update your constraints based upon the given information.");
+                setUserMessageTrigger(false);
+            }
+            else{
+                setMessages((prev) => [...prev, { text: "...", sender: "system" }]);
+                generateSpeech("You have no more ambiguities. You can now finalize your floorplan.");
+                setUserMessageTrigger(false);
+            }
           }
         }
+
 
     }, [userMessageTrigger]);
 
@@ -280,15 +392,6 @@ const CreateFloorplan = () =>{
                   const audioBlob = new Blob(audioChunks, { type: "audio/wav" });
                   const audioFile = new File([audioBlob], "recording.wav", { type: "audio/wav" });
                 
-                  // Create a download link
-                // const a = document.createElement("a");
-                // a.href = URL.createObjectURL(audioBlob);
-                // a.download = "recording.wav";
-                // document.body.appendChild(a);
-                // a.click();
-                // document.body.removeChild(a);
-                // URL.revokeObjectURL(a.href); // Free up memory
-
                   const formData = new FormData();
                   formData.append("file", audioFile);
                   formData.append("message_count", userMessageCount.current); // Append user message count
@@ -302,24 +405,33 @@ const CreateFloorplan = () =>{
                       if (response.data.text && userMessageCount.current == 0) {
                           setMessages((prev) => prev.filter((msg) => msg.text !== "..."));
                           setMessages((prev) => [...prev, { text: response.data.text, sender: "user" }]);
-                          setUserConstraints(response.data.text);
+                          userConstraints.current = response.data.text;
                           userMessageCount.current += 1;
                           setUserMessageTrigger(true);
                       }
                       if (response.data.text && (userMessageCount.current == 2 || userMessageCount.current == 3)) {
                         setMessages((prev) => prev.filter((msg) => msg.text !== "..."));
                         setMessages((prev) => [...prev, { text: response.data.text, sender: "user" }]);
-                        userResponseForAmbiguities.current += "\n" + response.data.text;
-                        userMessageCount.current += 1;
+                        userResponseForGeneralAmbiguities.current += response.data.text;
+
                         if (userMessageCount.current == 3){
-                          setUserConstraints(userConstraints + userResponseForAmbiguities.current);
+                          userResponseForSizeAmbiguities.current += response.data.text;
+
+                          let additional_string = "\n(Some questions were asked to the user about the floorplan):\n Questions: " + Object.values(generalAmbiguities).join("\n")
+                                                   + "\nAnswers: " + userResponseForGeneralAmbiguities.current + "\n Questions: " + Object.values(sizeAmbiguities).join("\n")
+                                                   + "\nAnswers: " + userResponseForSizeAmbiguities.current; 
+                          userConstraints.current = userConstraints.current + additional_string;
+                          console.log(userConstraints.current + additional_string);
                         }
+                        userMessageCount.current += 1;
                         setUserMessageTrigger(true);
                       }
                       if (response.data.text && userMessageCount.current == 1) {
+                        console.log("received response:" + response.data.text);
                           if (response.data.user_choice_json){
                             if (response.data.user_choice_json.user_choice == "resolve_ambiguities"){
                                 setMessages((prev) => prev.filter((msg) => msg.text !== "..."));
+                                console.log("Received response: " + response.data.text);
                                 setMessages((prev) => [...prev, { text: response.data.text, sender: "user" }]);
                                 userMessageCount.current += 1;
                                 setUserMessageTrigger(true);
@@ -437,7 +549,7 @@ const CreateFloorplan = () =>{
                 src = {send_icon}
                 alt = "send icon" 
                 onClick={sendMessage} 
-                className="-mt-10 ml-auto -mr-13 w-9 h-9 rounded-full border-1 hover:border-voicearchi_purple_bright"
+                className={`-mt-10 ml-auto -mr-13 w-9 h-9 rounded-full border-1 hover:border-voicearchi_purple_bright ${isSystemTyping ? "opacity-40 pointer-events-none" : ""}`}
                 />
                 {isRecording && (
                 <span className="absolute -top-9 -right-25 text-xs text-white bg-black/30 px-2 py-1 rounded-md">
@@ -449,34 +561,83 @@ const CreateFloorplan = () =>{
                 alt = "mic icon" 
                 onClick={recordMessage} 
                 className={`-mt-9 ml-auto -mr-25 w-9 h-9 rounded-full border-1 hover:border-voicearchi_purple_bright transition-colors duration-300 ${
-                            isRecording ? "bg-voicearchi_purple_glow_dim" : "bg-transparent"}`}
+                            isRecording ? "bg-voicearchi_purple_glow_dim" : "bg-transparent"} ${
+                            isSystemTyping ? "opacity-40 pointer-events-none" : ""}`}
                 />                     
             </div>
 
                 
             </div>
+
+
             {/*Constraints and floorplan drawing window*/}
             <div
-                className={`w-140 h-160 rounded-xl absolute left-85 top-30 animate-fade-delayed bg-voicearchi_purple_glow/10 border border-white/20 transition-transform duration-500 ease-in-out ${
+            className={`w-140 h-160 rounded-xl absolute left-85 top-30 animate-fade-delayed bg-voicearchi_purple_glow/10 border border-white/20 transition-transform duration-500 ease-in-out ${
                 !constraintsWindowActive ? "hidden" : ""
-                }`}
-            >
-                {/*Window title*/}
-                <h1 className="absolute left-1/2 transform -translate-x-1/2 text-white">
-                Extracted Constraints
-                </h1>
-
-                <DotLottieReact
-                  className={`w-100 h-auto top-50 absolute left-1/2 transform -translate-x-1/2 invert ${!isLoadingConstraints ? "hidden": ""}`}
-                  src="https://lottie.host/b3446f2b-ac55-4666-afc8-439b14425a7a/qMMIJWHNSc.lottie"
-                  loop
-                  autoplay
-                />
-                <div className="w-120 h-140 absolute left-1/2 transform -translate-x-1/2 top-10 overflow-auto p-2 text-white rounded-md scrollbar-thumb-rounded-full scrollbar-track-rounded-full scrollbar scrollbar-thumb-voicearchi_purple_glow_dim/15 scrollbar-track-white/0 scrollbar-hover:scrollbar-thumb-voicearchi_purple_glow_dim/30 overflow-y-scroll">
-                  {error && <p style={{ color: "red" }}>{error}</p>}
-                  {extractedData && <JsonViewer data={extractedData} />}
-                </div>   
+            }`}
+        >
+            {/* Tabs for switching views */}
+            <div className="w-full flex border-b border-white/20">
+                <button
+                    className={`flex-1 py-2 text-center text-white transition-all ${
+                        activeTab === "constraints" ? "border-b-2 border-voicearchi_purple_bright font-bold" : "opacity-50"
+                    }`}
+                    onClick={() => setActiveTab("constraints")}
+                >
+                    Extracted Constraints
+                </button>
+                <button
+                    className={`flex-1 py-2 text-center text-white transition-all ${
+                        activeTab === "floorplan" ? "border-b-2 border-voicearchi_purple_bright font-bold" : "opacity-50"
+                    }`}
+                    onClick={() => setActiveTab("floorplan")}
+                >
+                    Final Floorplan
+                </button>
             </div>
+
+            {/* Loading Animation */}
+            <DotLottieReact
+                className={`w-100 h-auto top-50 absolute left-1/2 transform -translate-x-1/2 invert ${
+                    !isLoadingConstraints ? "hidden" : ""
+                }`}
+                src="https://lottie.host/b3446f2b-ac55-4666-afc8-439b14425a7a/qMMIJWHNSc.lottie"
+                loop
+                autoplay
+            />
+
+            {/* Content Window */}
+            <div className="w-120 h-130 border-b-1 border-b-voicearchi_purple_bright/20 absolute left-1/2 transform -translate-x-1/2 top-14 overflow-auto p-2 text-white rounded-md scrollbar-thumb-rounded-full scrollbar-track-rounded-full scrollbar scrollbar-thumb-voicearchi_purple_glow_dim/15 scrollbar-track-white/0 scrollbar-hover:scrollbar-thumb-voicearchi_purple_glow_dim/30 overflow-y-scroll">
+                {activeTab === "constraints" && (
+                    <>
+                        {error && <p style={{ color: "red" }}>{error}</p>}
+                        {extractedData && <JsonViewer data={extractedData} />}
+                    </>
+                )}
+            {activeTab === "floorplan" && (
+                <div className="flex justify-center items-center h-full">
+                    {floorplanImage ? (
+                        <img src={floorplanImage} alt="Final Floorplan" className="w-auto max-h-full rounded-lg shadow-lg" />
+                    ) : (
+                        <p className="text-center text-white">[Final Floorplan Visualization Here]</p>
+                    )}
+                </div>
+            )}
+
+            </div>
+
+            {/* Finalize Button */}
+            {activeTab === "constraints" && (
+              <button
+                  className={`w-40 rounded-full border-1 border-voicearchi_purple_bright font-montserrat hover:bg-voicearchi_purple_glow/70 absolute left-1/2 transform -translate-x-1/2 bottom-5 ${
+                      isLoadingConstraints || isLoadingFinalization ? "hidden" : ""
+                  }`}
+                  onClick={handleFinalizeFloorplan}
+              >
+                  {isLoadingFinalization ? "Processing..." : "Finalize Floorplan"}
+              </button>
+            )}
+        </div>
       </>
 
     );

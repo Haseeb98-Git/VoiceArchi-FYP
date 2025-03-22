@@ -19,7 +19,7 @@ def get_ambiguities(extracted_json):
     # resolving size ambiguities
     if user_constraints['indoor_floorplan_size']['numeric_value'] == 'notspecified':
         size_ambiguity_count += 1
-        size_ambiguities[f"ambiguity_{size_ambiguity_count}"] = "What is the your indoor floorplan size and its unit?"
+        size_ambiguities[f"ambiguity_{size_ambiguity_count}"] = "What is your indoor floorplan size and its unit?"
 
     if user_constraints['indoor_floorplan_size']['unit'] == "notspecified" and user_constraints['indoor_floorplan_size']['numeric_value'] != "notspecified":
         size_ambiguity_count +=1
@@ -28,28 +28,28 @@ def get_ambiguities(extracted_json):
     if user_constraints['has_frontyard'] == 'yes':
         if user_constraints['outdoor_floorplan_size']['frontyard']['numeric_value'] == 'notspecified':
             size_ambiguity_count += 1
-            size_ambiguities[f"ambiguity_{size_ambiguity_count}"] = "What is the your frontyard size and unit?"
+            size_ambiguities[f"ambiguity_{size_ambiguity_count}"] = "What is your frontyard size and unit?"
         if user_constraints['outdoor_floorplan_size']['frontyard']['unit'] == 'notspecified' and user_constraints['outdoor_floorplan_size']['frontyard']['numeric_value'] != 'notspecified':
             size_ambiguities[f"ambiguity_{size_ambiguity_count}"] = "You mentioned your frontyard size, please also specify the unit."
 
     if user_constraints['has_backyard'] == 'yes':
         if user_constraints['outdoor_floorplan_size']['backyard']['numeric_value'] == 'notspecified':
             size_ambiguity_count += 1
-            size_ambiguities[f"ambiguity_{size_ambiguity_count}"] = "What is the your backyard size and unit?"
+            size_ambiguities[f"ambiguity_{size_ambiguity_count}"] = "What is your backyard size and unit?"
         if user_constraints['outdoor_floorplan_size']['backyard']['unit'] == 'notspecified' and user_constraints['outdoor_floorplan_size']['backyard']['numeric_value'] != 'notspecified':
             size_ambiguities[f"ambiguity_{size_ambiguity_count}"] = "You mentioned your backyard size, please also specify the unit."
 
     if user_constraints['has_left_sideyard'] == 'yes':
         if user_constraints['outdoor_floorplan_size']['left_sideyard']['numeric_value'] == 'notspecified':
             size_ambiguity_count += 1
-            size_ambiguities[f"ambiguity_{size_ambiguity_count}"] = "What is the your left sideyard size and unit?"
+            size_ambiguities[f"ambiguity_{size_ambiguity_count}"] = "What is your left sideyard size and unit?"
         if user_constraints['outdoor_floorplan_size']['left_sideyard']['unit'] == 'notspecified' and user_constraints['outdoor_floorplan_size']['left_sideyard']['numeric_value'] != 'notspecified':
             size_ambiguities[f"ambiguity_{size_ambiguity_count}"] = "You mentioned your left sideyard size, please also specify the unit."
 
     if user_constraints['has_right_sideyard'] == 'yes':
         if user_constraints['outdoor_floorplan_size']['right_sideyard']['numeric_value'] == 'notspecified':
             size_ambiguity_count += 1
-            size_ambiguities[f"ambiguity_{size_ambiguity_count}"] = "What is the your right sideyard size and unit?"
+            size_ambiguities[f"ambiguity_{size_ambiguity_count}"] = "What is your right sideyard size and unit?"
         if user_constraints['outdoor_floorplan_size']['right_sideyard']['unit'] == 'notspecified' and user_constraints['outdoor_floorplan_size']['right_sideyard']['numeric_value'] != 'notspecified':
             size_ambiguities[f"ambiguity_{size_ambiguity_count}"] = "You mentioned your right sideyard size, please also specify the unit."
     
