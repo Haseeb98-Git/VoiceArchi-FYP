@@ -12,10 +12,11 @@ import drawing_system as ds
 from drawing_system import area_types, room_sizes
 from typing import Dict, Any
 import copy
+import api_keys
 
-openai_api_key = "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"
-openrouter_api_key = "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"
-openrouter_api_key_2 = "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"
+openai_api_key = api_keys.openai_api_key
+openrouter_api_key = api_keys.openrouter_api_key
+openrouter_api_key_2 = api_keys.openrouter_api_key_2
 
 openrouter_models = [("anthropic/claude-3.5-haiku","Anthropic"), ("mistralai/mistral-small-24b-instruct-2501","Mistral"),
                      
@@ -23,11 +24,12 @@ openrouter_models = [("anthropic/claude-3.5-haiku","Anthropic"), ("mistralai/mis
 
                       ("deepseek/deepseek-r1-zero:free", "Chutes"), ("anthropic/claude-3.7-sonnet", "Anthropic"),
 
-                      ("qwen/qwen2.5-vl-72b-instruct:free", "Alibaba"), ("qwen/qwen2.5-vl-72b-instruct", "Parasail")]
+                      ("qwen/qwen2.5-vl-72b-instruct:free", "Alibaba"), ("qwen/qwen2.5-vl-72b-instruct", "Parasail"),
+                      ("deepseek/deepseek-chat-v3-0324", "Parasail")]
 
 active_openrouter_api_key = openrouter_api_key
-active_openrouter_model = openrouter_models[7][0]
-active_openrouter_modeL_provider = openrouter_models[7][1]
+active_openrouter_model = openrouter_models[8][0]
+active_openrouter_modeL_provider = openrouter_models[8][1]
 
 app = FastAPI()
 
@@ -155,6 +157,7 @@ async def extract_constraints(request: FloorplanRequest):
             "messages": [
                 {"role": "user", "content": prompt}
             ],
+            "max_tokens": 4000,
             "provider": {
                 "order": [active_openrouter_modeL_provider, active_openrouter_modeL_provider],
                 "allow_fallbacks": False

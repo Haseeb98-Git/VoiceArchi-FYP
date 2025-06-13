@@ -11,7 +11,7 @@ import voicearchi_svg_floorplan_bed2 from "../assets/floorplan_bed2.svg"
 import voicearchi_svg_floorplan_cabinets from "../assets/floorplan_cabinets.svg"
 import voicearchi_svg_floorplan_stairs from "../assets/floorplan_stairs.svg"
 
-const Intro = () =>{
+const Intro = ({ onGetStarted }) =>{
 
     return(
         <>
@@ -33,7 +33,8 @@ const Intro = () =>{
       {/* Main Intro description */}
       <h1 className = "text-gray-100 font-montserrat w-150 h-auto absolute left-1/2 transform -translate-x-1/2 top-140">VoiceArchi transforms your voice commands into 2D floorplans instantly. Simply describe your idea, and our AI-powered system will convert it into a structured design, streamlining the floorplan creation process effortlessly.</h1>
       {/* Get Started Now Button */}
-      <button className="hidden absolute left-1/2 transform -translate-x-1/2 top-170 md:block border border-voicearchi_purple_bright text-white px-4 py-1 mb-3 rounded-lg font-montserrat text-xl font-bold hover:bg-voicearchi_purple_glow_dim"> Get Started</button>
+      <button className="hidden absolute left-1/2 transform -translate-x-1/2 top-170 md:block border border-voicearchi_purple_bright text-white px-4 py-1 mb-3 rounded-lg font-montserrat text-xl font-bold hover:bg-voicearchi_purple_glow_dim"
+              onClick={onGetStarted}> Get Started</button>
       </div>
       </>
     );
