@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import voicearchi_svg_logo from "../assets/logo_svg.svg";
+import profile_generic_icon from "../assets/profile_generic_icon.svg";
 import LoginPopup from "../components/LoginPopup";
 
 const Navbar = () => {
@@ -20,12 +21,14 @@ const Navbar = () => {
             <button className="text-white font-montserrat transition-all duration-200 hover:text-lg">Contact Us</button>
             </div>
             <div className="flex items-center">
-            <button onClick={() => setIsLoginOpen(true)} className="hidden mr-10 md:block border border-voicearchi-blue text-white px-4 py-1 mb-3 rounded-lg font-montserrat hover:bg-voicearchi_purple_glow_dim">
+            {/* <button onClick={() => setIsLoginOpen(true)} className="hidden mr-10 md:block border border-voicearchi-blue text-white px-4 py-1 mb-3 rounded-lg font-montserrat hover:bg-voicearchi_purple_glow_dim">
                 Login
             </button>
             <button className="md:hidden text-white focus:outline-none ml-4" onClick={() => setIsOpen(!isOpen)}>
                 ☰
-            </button>
+            </button> */}
+            <h3 className="text-gray-100 pr-5 font-montserrat">Haseeb Ali</h3>
+            <img src={profile_generic_icon} className="w-7 h-auto rounded-2xl border-1 border-white hover:bg-voicearchi_purple_glow_dim"/>
             </div>
         </nav>
 

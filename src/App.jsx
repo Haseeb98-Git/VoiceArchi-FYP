@@ -1,15 +1,16 @@
 import Navbar from "./components/Navbar";
+import { useState } from "react";
 import Home from "./components/Home";
 import LoggedInNavbar from "./components/LoggedInNavbar";
 import "./App.css";
 
 function App() {
-let loggedIn = false;
+  const [loggedIn, setLoggedIn] = useState(false); // useState hook
   return (
     <>
     {/* Injecting Navbar Component */}
-    {loggedIn? <Navbar/>: <LoggedInNavbar/>}
-     <Home/>
+    {!loggedIn? <Navbar/>: <LoggedInNavbar/>}
+     <Home loggedIn={loggedIn} setLoggedIn={setLoggedIn}/>
     </>
   );
 }

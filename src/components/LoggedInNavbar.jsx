@@ -18,7 +18,7 @@ const LoggedInNavbar = () => {
             <img src={voicearchi_svg_logo} alt="VoiceArchi Logo" className="h-7 w-auto" />
             </div>
             <div className="absolute left-1/2 transform -translate-x-1/2 hidden md:flex space-x-6">
-            <button className="text-white font-montserrat text-xl transition-all duration-200">User Dashboard</button>
+            <button className="text-white font-montserrat text-xl transition-all duration-200">Create Floorplan</button>
             </div>
             <div className="flex items-center">
             <h3 className="text-gray-100 pr-5 font-montserrat">Haseeb Ali</h3>

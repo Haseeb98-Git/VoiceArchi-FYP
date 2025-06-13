@@ -1,15 +1,14 @@
 import React from "react";
+import { useState } from "react";
 import Intro from "../components/Intro";
 import background_pattern from "../assets/background_pattern_1.svg"
 import CreateFloorplan from "./CreateFloorplan";
-const Home = () =>{
-
-    let loggedIn = false;
+const Home = ({ loggedIn, setLoggedIn }) =>{
 
     return (
         <>
 
-    {loggedIn?
+    {!loggedIn?
 
     <>
 
@@ -24,7 +23,7 @@ const Home = () =>{
         {/* Page Containers */}
 
         {/* Intro Page Content */}
-        <Intro/>
+        <Intro onGetStarted={() => setLoggedIn(true)} />
 
         <div className="relative h-screen w-full flex items-center justify-center">
           <h1 className="text-4xl font-bold">About VoiceArchi</h1>
