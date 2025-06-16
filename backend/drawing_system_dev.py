@@ -1222,7 +1222,7 @@ def get_adjacency_requirements(user_constraints, room_sizes):
 
         closest_match = find_closest_room(cleaned_name, valid_room_names)
 
-        # Extract numeric suffix (if any)
+        # Extract numeric suffix
         suffix_match = re.search(r'\d+$', original_name)
         suffix = f"_{suffix_match.group()}" if suffix_match else ""
 

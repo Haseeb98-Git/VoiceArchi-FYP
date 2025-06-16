@@ -157,3 +157,5 @@ room_sizes = {
     'cloakroom': {'small': 2, 'medium': 3, 'large': 4},
     'foyer': {'small': 4, 'medium': 6, 'large': 8}
 }
+
+nothing = []
