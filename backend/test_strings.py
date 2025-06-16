@@ -101,7 +101,7 @@ user_constraints = {
       ["bedroom_3", "bathroom_3"],
       ["garage_1", "livingroom_1"]
     ],
-    "hasBalcony": ["bedroom_1", "kitchen_1"],
+    "hasBalcony": ["bedroom_1", "kitchen_1", "bedroom_3"],
     "oppositeTo": [],
     "hasWindows": [],
     "hasAttachedBathroom": ["bedroom_1"],

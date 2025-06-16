@@ -560,6 +560,70 @@ def plot_graph_edges(edges_dict, padding=5):
     plt.show()  # Show plot without blocking execution
     plt.close()  # Immediately close the plot window
 
+
+# attach bathroom function
+
+def add_attached_bathroom_to_room(
+    room_name,
+    room_edges_dict,
+    edge_to_rooms,
+    label_positions,
+    width_fraction=0.5,
+    depth_fraction=0.3,
+    color='gray'
+):
+    # Get all edges that belong to the room
+    relevant_edges = [edge for edge, rooms in edge_to_rooms.items() if room_name in rooms]
+
+    if not relevant_edges:
+        print(f"No edges found for room: {room_name}")
+        return {}, {}
+
+    # Select the longest edge
+    def edge_length(edge):
+        (x1, y1), (x2, y2) = edge
+        return math.hypot(x2 - x1, y2 - y1)
+
+    longest_edge = max(relevant_edges, key=edge_length)
+    (x1, y1), (x2, y2) = longest_edge
+    length = edge_length(longest_edge)
+
+    # Midpoint of the edge
+    mx, my = (x1 + x2) / 2, (y1 + y2) / 2
+
+    # Direction vectors
+    dx, dy = x2 - x1, y2 - y1
+    ux, uy = dx / length, dy / length  # unit tangent
+    nx, ny = -uy, ux  # inward normal (choose later)
+
+    # Determine inward normal (towards room center)
+    room_center = label_positions[room_name]
+    m1 = (mx + nx, my + ny)
+    m2 = (mx - nx, my - ny)
+    d1 = math.hypot(m1[0] - room_center[0], m1[1] - room_center[1])
+    d2 = math.hypot(m2[0] - room_center[0], m2[1] - room_center[1])
+    if d1 > d2:
+        nx, ny = -nx, -ny
+
+    # Width and depth
+    attach_width = length * width_fraction
+    attach_depth = length * depth_fraction
+
+    # Compute bathroom polygon
+    midx, midy = mx, my
+    wx, wy = ux * attach_width / 2, uy * attach_width / 2
+    dx, dy = nx * attach_depth, ny * attach_depth
+
+    v1 = (midx - wx, midy - wy)
+    v2 = (midx + wx, midy + wy)
+    v3 = (v2[0] + dx, v2[1] + dy)
+    v4 = (v1[0] + dx, v1[1] + dy)
+
+    bathroom_poly = [v1, v2, v3, v4]
+
+    return {room_name: bathroom_poly}
+
+
 # helper functions
 
 def create_side_segment(edge, fraction, from_start=True):
@@ -597,6 +661,7 @@ def create_centered_segment(edge, fraction):
     sy2 = cy + uy * scale
 
     return (sx1, sy1), (sx2, sy2)
+
 
 
 def get_outside_edges_of_room(edges_dict, room_name):
@@ -644,7 +709,7 @@ def create_balcony_from_edge(edge, depth=5.0, room_center=None):
 
 def plot_graph_edges_with_doors(
     edges_dict, door_edges, label_positions,
-    balconies=None, text_size=12, padding=5, save_path=None
+    balconies=None, attached_bathrooms=None, text_size=12, padding=5, save_path=None
 ):
     """Plots edges, doors, room labels, and balconies."""
 
@@ -690,6 +755,12 @@ def plot_graph_edges_with_doors(
     # Plot doors (white)
     for (v1, v2) in door_edges:
         ax.plot([v1[0], v2[0]], [v1[1], v2[1]], "w-", linewidth=3)
+    # Plot attached bathrooms
+    if attached_bathrooms:
+        for poly in attached_bathrooms.values():
+            x_coords = [p[0] for p in poly] + [poly[0][0]]
+            y_coords = [p[1] for p in poly] + [poly[0][1]]
+            ax.fill(x_coords, y_coords, color='blue', alpha=0.2, zorder=0)
 
     # Plot room labels
     for label, (x, y) in label_positions.items():
@@ -719,7 +790,7 @@ def add_balcony_to_room(room_name, edges_dict, label_positions, balcony_depth=5.
     room_center = label_positions[room_name]
 
     # 1. Take left (or right) portion of the edge for the balcony
-    balcony_edge = create_side_segment(best_edge, fraction=0.5, from_start=True)
+    balcony_edge = create_side_segment(best_edge, fraction=0.7, from_start=True)
 
     # 2. Door is centered inside the balcony edge
     door_edge = create_centered_segment(balcony_edge, fraction=0.25)
@@ -730,11 +801,6 @@ def add_balcony_to_room(room_name, edges_dict, label_positions, balcony_depth=5.
     door_edges = {door_edge: [room_name, f"{room_name}_balcony"]}
 
     return {f"{room_name}_balcony": balcony_poly}, door_edges
-
-
-
-
-
 
 
 def remove_room(graph_data, room_name):
