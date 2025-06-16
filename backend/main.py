@@ -149,7 +149,7 @@ async def extract_constraints(request: FloorplanRequest):
     response = requests.post(
         url="https://openrouter.ai/api/v1/chat/completions",
         headers={
-            "Authorization": f"Bearer {openrouter_api_key_2}",
+            "Authorization": f"Bearer {active_openrouter_api_key}",
             "Content-Type": "application/json"
         },
         json={
