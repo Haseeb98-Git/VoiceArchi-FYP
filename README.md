@@ -1,6 +1,6 @@
 # VoiceArchi - AI-Powered Voice-to-Floorplan Generator  
 
-![VoiceArchi Logo](https://via.placeholder.com/150)  
+![voicearchi_logo](https://github.com/user-attachments/assets/173d27aa-1359-45a8-9438-977b2f11fd63)
 
 Transform your spoken ideas into detailed 2D architectural floorplans effortlessly with **VoiceArchi**, an AI-driven web application that makes architectural design intuitive and accessible to everyone—no technical skills required.  
 
