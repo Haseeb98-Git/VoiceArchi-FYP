@@ -207,23 +207,27 @@ def drawing(data: ConstraintsRequest):
     constraints, room_name_mappings = ds.get_constraints_room_mappings(user_constraints, room_sizes)
     grouped_rooms = ds.group_rooms(constraints, area_types)
     squarified_areas = ds.squarify_areas(grouped_rooms)
+    adjacency_requirement = ds.get_adjacency_requirements(user_constraints, room_sizes)
     room_data, graph = ds.get_room_data_and_graph(grouped_rooms, squarified_areas)
-    label_positions = ds.get_room_label_positions(room_data)
-
-    room_data_backbone = copy.deepcopy(room_data)
+    if adjacency_requirement != None:
+        best_room_data, best_score = ds.optimize_adjacency(room_data, adjacency_requirement)
+    else:
+        best_room_data = room_data
+    label_positions = ds.get_room_label_positions(best_room_data)
+    room_data_backbone = copy.deepcopy(best_room_data)
     room_data_backbone = ds.convert_to_absolute(room_data_backbone)
     graph_data = ds.convert_to_graph_with_room_info(room_data_backbone)
     updated_graph_data = ds.remove_outside_edges_and_corners(graph_data)
     new_graph, connecting_vertices = ds.remove_room(updated_graph_data, "livingroom_1")
 
-    disconnected_rooms = ds.get_disconnected_rooms(room_data)
+    disconnected_rooms = ds.get_disconnected_rooms(best_room_data)
     shortest_path_graph = ds.shortest_path_to_connect_rooms(new_graph, connecting_vertices[0][0], disconnected_rooms)
     cleaned_path = ds.remove_redundant_edges(shortest_path_graph)
     ds.plot_graph_with_path(graph_data, cleaned_path, corridor_width=45, padding=0)
     boundary_edges = ds.get_color_boundary_edges(image_path="corridor.png")
     normalized_edges = ds.resize_graph_edges(original_graph_edges=boundary_edges, original_size=2400, new_size=100)
     merged_normalized_edges = ds.merge_close_values_in_graph(normalized_edges)
-    
+
     corridor_edges_dict = ds.format_corridor_edges(merged_normalized_edges)
     merged_edges = {**graph_data['edges'], **corridor_edges_dict}
     split_edges_new = ds.split_edges_at_intersections(merged_edges)
@@ -239,10 +243,55 @@ def drawing(data: ConstraintsRequest):
 
     door_edges = ds.generate_door_edges(room_edges_with_corridor_connection)
 
+    # balconies logic
+
+    all_balconies = {}
+
+    # Go through all rooms that require balconies
+    for room_to_add_balcony in user_constraints["floorplan_relationships"]["hasBalcony"]:
+        balconies, new_door = ds.add_balcony_to_room(
+            room_to_add_balcony,
+            room_edges_with_corridor_connection,
+            label_positions=label_positions,
+            balcony_depth=15
+        )
+
+        # Skip if no balcony was created (e.g., edge not found or room center missing)
+        if not balconies or not new_door:
+            print(f"Skipping balcony for room: {room_to_add_balcony}")
+            continue
+
+        all_balconies.update(balconies)
+        door_edges.update(new_door)
+
+    # attached bathrooms logic
+    all_attached_bathrooms = {}
+
+    # Loop through rooms from user constraints that should have attached bathrooms
+    for room_with_bath in user_constraints["floorplan_relationships"]["hasAttachedBathroom"]:
+        attach_bath_polygons = ds.add_attached_bathroom_to_room(
+            room_name=room_with_bath,
+            room_edges_dict=room_edges_with_corridor_connection,
+            edge_to_rooms=room_edges_with_corridor_connection,  # since it's already in that format
+            label_positions=label_positions,
+            width_fraction=0.6,  # or customize per room if needed
+            depth_fraction=0.3
+        )
+
+        if attach_bath_polygons:
+            all_attached_bathrooms.update(attach_bath_polygons)
+
     # Generate and save the final floorplan image
-    save_path = "final_floorplan.png"
-    ds.plot_graph_edges_with_doors(room_edges_with_corridor_connection, door_edges, label_positions, text_size=12, padding=5, save_path=save_path)
+    save_path = "final_floorplan.jpg"
 
-    return FileResponse(save_path, media_type="image/png", filename="floorplan.png")
-
+    # Final plot
+    ds.plot_graph_edges_with_doors(
+        edges_dict=room_edges_with_corridor_connection,
+        door_edges=door_edges,
+        label_positions=label_positions,
+        balconies=all_balconies,
+        attached_bathrooms=all_attached_bathrooms,
+        save_path=save_path
+    )
+    return FileResponse(save_path, media_type="image/jpeg", filename="floorplan.jpg")
     # Run using: uvicorn main:app --host 0.0.0.0 --port 8000 --reload

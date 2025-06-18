@@ -60,35 +60,54 @@ room_sizes = {
     'cloakroom': {'small': 2, 'medium': 3, 'large': 4},
     'foyer': {'small': 4, 'medium': 6, 'large': 8}
 }
+import squarify
+import numpy as np
+import matplotlib.pyplot as plt
+import networkx as nx
+import math
+import copy
+import heapq
+import os
+import re
+import random
+import difflib
+import cv2
+from shapely.geometry import Polygon, LineString, Point
+
 # Function to find the most similar room name if not directly available
 def find_closest_room(room_name, valid_room_names):
     closest_match = difflib.get_close_matches(room_name, valid_room_names, n=1, cutoff=0.6)
     return closest_match[0] if closest_match else "storeroom"  # Default to 'storeroom' if no close match
 
 # Generate constraints while preserving mappings with underscores
-
 def get_constraints_room_mappings(user_constraints, room_sizes):
     constraints = []
     room_name_mappings = {}
     valid_room_names = list(room_sizes.keys())
 
     for room in user_constraints['indoor_room_info']:
-        original_room_name = room["name"]  # Keep the original room name with underscores
-        cleaned_room_name = original_room_name.replace("_", "").lower()  # Remove underscores for matching
+        original_room_name = room["name"]  # e.g., 'bedroom1' or 'bedroom_1'
+        cleaned_room_name = original_room_name.replace("_", "").lower()  # e.g., 'bedroom1'
         room_size = room["size"].lower()
 
-        # Find the closest valid room type while keeping underscores
+        # Determine the closest valid room type
         if cleaned_room_name in room_sizes:
-            mapped_room = original_room_name  # Keep it as is if already valid
+            mapped_room = original_room_name  # Already valid
         else:
             closest_match = find_closest_room(cleaned_room_name, valid_room_names)
-            mapped_room = closest_match + "_" + original_room_name.split("_")[-1] if "_" in original_room_name else closest_match
+
+            # Extract numeric suffix (if any)
+            suffix_match = re.search(r'\d+$', original_room_name)
+            suffix = f"_{suffix_match.group()}" if suffix_match else ""
+
+            mapped_room = closest_match + suffix
 
         # Preserve the mapping of original name to mapped room name
         room_name_mappings[original_room_name] = mapped_room
 
-        # Assign size based on predefined sizes
-        size_value = room_sizes[mapped_room.split("_")[0]].get(room_size, 5)  # Default to 5 if size is missing
+        # Assign size value using room_sizes, fallback to 5 if not found
+        base_room_type = mapped_room.split("_")[0]
+        size_value = room_sizes.get(base_room_type, {}).get(room_size, 5)
 
         constraints.append({"type": mapped_room, "size": size_value})
 
@@ -97,21 +116,31 @@ def get_constraints_room_mappings(user_constraints, room_sizes):
     print("Room Name Mappings:", room_name_mappings)
     return constraints, room_name_mappings
 
-# Function to map a list of room names using stored mappings while keeping underscores
-def map_room_names(room, room_name_mappings):
-    print("mapped ",room, " to: ",room_name_mappings.get(room, room))
-    return room_name_mappings.get(room, room)  # If not in mappings, keep original
-
 def group_rooms(constraints, area_types):
     grouped_rooms = {"social": [], "service": [], "private": []}
-    
+    livingroom = None
+
     for room in constraints:
         room_name = room["type"]
-        base_name = room_name.split("_")[0]  # Remove underscore for area type lookup
+        base_name = room_name.split("_")[0]
         area_type = area_types.get(base_name, None)
-        
-        if area_type:
+
+        if base_name == "livingroom":
+            livingroom = {"name": room_name, "size": room["size"]}
+
+        elif area_type:
             grouped_rooms[area_type].append({"name": room_name, "size": room["size"]})
+
+    # Ensure livingroom_1 exists and is first in the social area
+    if not livingroom:
+        livingroom = {"name": "livingroom_1", "size": 12}
+    
+    grouped_rooms["social"].insert(0, livingroom)
+
+    # Remove groups that are empty (except social)
+    for area in ["private", "service"]:
+        if not grouped_rooms[area]:
+            del grouped_rooms[area]
 
     return grouped_rooms
 
@@ -122,9 +151,9 @@ def squarify_areas(grouped_rooms):
     areas = squarify.squarify(norm_area_sizes, x=0, y=0, dx=100, dy=100)
     return areas
 
+
 def allocate_rooms(rooms, area):
     room_sizes = [r["size"] for r in rooms]
-    #room_labels = [r["type"] for r in rooms]
     room_labels = [r["name"] for r in rooms]
     norm_sizes = squarify.normalize_sizes(room_sizes, area["dx"], area["dy"])
     return squarify.squarify(norm_sizes, x=area["x"], y=area["y"], dx=area["dx"], dy=area["dy"]), room_labels
@@ -245,23 +274,32 @@ def get_swappable_rooms(room_data):
     return swappable_rooms
 
 def swap_rooms(room_data, pair):
-    """Swaps the positions of two rooms while keeping their dimensions unchanged."""
+    """Swaps positions of two rooms (visually) and updates adjacency references accordingly."""
     i, j = pair
     TOLERANCE = 1e-3  
     swapped_room_data = copy.deepcopy(room_data)
 
-    # Get the original positions
+    # Swap positions (rects) only
     rect1, rect2 = swapped_room_data[i]["rect"], swapped_room_data[j]["rect"]
 
-    # Swap along Y-axis if they share the same X position
     if math.isclose(rect1['x'], rect2['x'], abs_tol=TOLERANCE) and math.isclose(rect1['dx'], rect2['dx'], abs_tol=TOLERANCE):
         rect1["y"], rect2["y"] = rect2["y"], rect1["y"]
-
-    # Swap along X-axis if they share the same Y position
     elif math.isclose(rect1['y'], rect2['y'], abs_tol=TOLERANCE) and math.isclose(rect1['dy'], rect2['dy'], abs_tol=TOLERANCE):
         rect1["x"], rect2["x"] = rect2["x"], rect1["x"]
 
-    return swapped_room_data  # Return updated dictionary
+    # 🔄 Now update all adjacent_rooms to reflect the swapped indices
+    for k, room in swapped_room_data.items():
+        updated_adj = []
+        for adj in room['adjacent_rooms']:
+            if adj == i:
+                updated_adj.append(j)
+            elif adj == j:
+                updated_adj.append(i)
+            else:
+                updated_adj.append(adj)
+        room['adjacent_rooms'] = updated_adj
+
+    return swapped_room_data
 
 
 def plot_graph_and_contour(graph_data, path, padding=5):
@@ -585,28 +623,173 @@ def plot_graph_edges(edges_dict, padding=5):
     plt.close()  # Immediately close the plot window
 
 
-def plot_graph_edges_with_doors(edges_dict, door_edges, label_positions, text_size=12, padding=5, save_path = None):
-    """Plots edges from an edge dictionary, overlays doors in white, and labels rooms at given positions."""
+# attach bathroom function
 
-    # Extract unique vertices from edges
+def add_attached_bathroom_to_room(
+    room_name,
+    room_edges_dict,
+    edge_to_rooms,
+    label_positions,
+    width_fraction=0.5,
+    depth_fraction=0.3,
+    color='gray'
+):
+    # Get all edges that belong to the room
+    relevant_edges = [edge for edge, rooms in edge_to_rooms.items() if room_name in rooms]
+
+    if not relevant_edges:
+        print(f"No edges found for room: {room_name}")
+        return {}, {}
+
+    # Select the longest edge
+    def edge_length(edge):
+        (x1, y1), (x2, y2) = edge
+        return math.hypot(x2 - x1, y2 - y1)
+
+    longest_edge = max(relevant_edges, key=edge_length)
+    (x1, y1), (x2, y2) = longest_edge
+    length = edge_length(longest_edge)
+
+    # Midpoint of the edge
+    mx, my = (x1 + x2) / 2, (y1 + y2) / 2
+
+    # Direction vectors
+    dx, dy = x2 - x1, y2 - y1
+    ux, uy = dx / length, dy / length  # unit tangent
+    nx, ny = -uy, ux  # inward normal (choose later)
+
+    # Determine inward normal (towards room center)
+    room_center = label_positions[room_name]
+    m1 = (mx + nx, my + ny)
+    m2 = (mx - nx, my - ny)
+    d1 = math.hypot(m1[0] - room_center[0], m1[1] - room_center[1])
+    d2 = math.hypot(m2[0] - room_center[0], m2[1] - room_center[1])
+    if d1 > d2:
+        nx, ny = -nx, -ny
+
+    # Width and depth
+    attach_width = length * width_fraction
+    attach_depth = length * depth_fraction
+
+    # Compute bathroom polygon
+    midx, midy = mx, my
+    wx, wy = ux * attach_width / 2, uy * attach_width / 2
+    dx, dy = nx * attach_depth, ny * attach_depth
+
+    v1 = (midx - wx, midy - wy)
+    v2 = (midx + wx, midy + wy)
+    v3 = (v2[0] + dx, v2[1] + dy)
+    v4 = (v1[0] + dx, v1[1] + dy)
+
+    bathroom_poly = [v1, v2, v3, v4]
+
+    return {room_name: bathroom_poly}
+
+
+# helper functions
+
+def create_side_segment(edge, fraction, from_start=True):
+    """Returns a smaller segment starting from one end of the edge."""
+    (x1, y1), (x2, y2) = edge
+    dx, dy = x2 - x1, y2 - y1
+    length = ((dx)**2 + (dy)**2) ** 0.5
+    scale = fraction * length
+
+    # Unit vector
+    ux, uy = dx / length, dy / length
+
+    if from_start:
+        sx1, sy1 = x1, y1
+        sx2, sy2 = x1 + ux * scale, y1 + uy * scale
+    else:
+        sx2, sy2 = x2, y2
+        sx1, sy1 = x2 - ux * scale, y2 - uy * scale
+
+    return (sx1, sy1), (sx2, sy2)
+
+def create_centered_segment(edge, fraction):
+    """Returns a smaller centered segment of the given edge."""
+    (x1, y1), (x2, y2) = edge
+    cx, cy = (x1 + x2) / 2, (y1 + y2) / 2  # center
+    dx, dy = x2 - x1, y2 - y1
+    length = ((dx)**2 + (dy)**2) ** 0.5
+    scale = fraction * length / 2
+
+    # Unit vector
+    ux, uy = dx / length, dy / length
+    sx1 = cx - ux * scale
+    sy1 = cy - uy * scale
+    sx2 = cx + ux * scale
+    sy2 = cy + uy * scale
+
+    return (sx1, sy1), (sx2, sy2)
+
+
+
+def get_outside_edges_of_room(edges_dict, room_name):
+    return [edge for edge, rooms in edges_dict.items() if len(rooms) == 1 and rooms[0] == room_name]
+
+def pick_best_outside_edge(outside_edges):
+    def edge_length(e):
+        (x1, y1), (x2, y2) = e
+        return ((x2 - x1)**2 + (y2 - y1)**2) ** 0.5
+    return max(outside_edges, key=edge_length) if outside_edges else None
+
+def create_balcony_from_edge(edge, depth=5.0, room_center=None):
+    (x1, y1), (x2, y2) = edge
+    dx, dy = x2 - x1, y2 - y1
+    length = (dx**2 + dy**2) ** 0.5
+    if length == 0:
+        return []
+
+    # Unit vectors
+    ux, uy = dx / length, dy / length
+    nx1, ny1 = -uy, ux
+    nx2, ny2 = uy, -ux
+
+    def mid_point(edge):
+        return ((edge[0][0] + edge[1][0]) / 2, (edge[0][1] + edge[1][1]) / 2)
+
+    def offset_midpoint(nx, ny):
+        mx, my = mid_point(edge)
+        return (mx + nx * 0.5, my + ny * 0.5)
+
+    # Choose outward normal
+    m1 = offset_midpoint(nx1, ny1)
+    m2 = offset_midpoint(nx2, ny2)
+    dist1 = ((m1[0] - room_center[0]) ** 2 + (m1[1] - room_center[1]) ** 2) ** 0.5
+    dist2 = ((m2[0] - room_center[0]) ** 2 + (m2[1] - room_center[1]) ** 2) ** 0.5
+
+    nx, ny = (nx1, ny1) if dist1 > dist2 else (nx2, ny2)
+
+    # Balcony rectangle
+    v1 = (x1 + nx * depth, y1 + ny * depth)
+    v2 = (x2 + nx * depth, y2 + ny * depth)
+    return [(x1, y1), (x2, y2), v2, v1]
+
+
+
+def plot_graph_edges_with_doors(
+    edges_dict, door_edges, label_positions,
+    balconies=None, attached_bathrooms=None, text_size=12, padding=5, save_path=None
+):
+    """Plots edges, doors, room labels, and balconies."""
+
+    # Extract all vertices
     vertices = set()
     for edge in edges_dict.keys():
         vertices.update(edge)
 
-    # Determine min and max coordinates
+    if balconies:
+        for poly in balconies.values():
+            vertices.update(poly)
+
+    # Compute plot bounds
     all_x = [v[0] for v in vertices]
     all_y = [v[1] for v in vertices]
+    min_x, max_x = min(all_x) - padding, max(all_x) + padding
+    min_y, max_y = min(all_y) - padding, max(all_y) + padding
 
-    min_x, max_x = min(all_x), max(all_x)
-    min_y, max_y = min(all_y), max(all_y)
-
-    # Apply padding
-    min_x -= padding
-    max_x += padding
-    min_y -= padding
-    max_y += padding
-
-    # Create plot
     fig, ax = plt.subplots(figsize=(8, 8))
     ax.set_xlim(min_x, max_x)
     ax.set_ylim(min_y, max_y)
@@ -615,30 +798,71 @@ def plot_graph_edges_with_doors(edges_dict, door_edges, label_positions, text_si
     ax.set_frame_on(False)
     ax.set_facecolor("white")
 
-    # Plot original edges in black
-    for (v1, v2) in edges_dict.keys():
-        x_values = [v1[0], v2[0]]
-        y_values = [v1[1], v2[1]]
-        ax.plot(x_values, y_values, "k-", linewidth=4)  # Black walls
+    # Plot walls (black)
+    for (v1, v2) in edges_dict:
+        ax.plot([v1[0], v2[0]], [v1[1], v2[1]], "k-", linewidth=4)
 
-    # Plot door edges in white
-    for (v1, v2) in door_edges.keys():
-        x_values = [v1[0], v2[0]]
-        y_values = [v1[1], v2[1]]
-        ax.plot(x_values, y_values, "w-", linewidth=3)  # White door
+    # Plot balconies
+    if balconies:
+        for poly in balconies.values():
+            x_coords = [p[0] for p in poly] + [poly[0][0]]
+            y_coords = [p[1] for p in poly] + [poly[0][1]]
+            ax.fill(x_coords, y_coords, color='gray', zorder=0)
 
-    # Plot room labels at their designated positions
+            # Draw balcony walls (optional: use dashed gray lines to differentiate)
+            for i in range(len(poly)):
+                p1 = poly[i]
+                p2 = poly[(i + 1) % len(poly)]
+                ax.plot([p1[0], p2[0]], [p1[1], p2[1]], color="gray", linewidth=2, linestyle="--")
+    # Plot doors (white)
+    for (v1, v2) in door_edges:
+        ax.plot([v1[0], v2[0]], [v1[1], v2[1]], "w-", linewidth=3)
+    # Plot attached bathrooms
+    if attached_bathrooms:
+        for poly in attached_bathrooms.values():
+            x_coords = [p[0] for p in poly] + [poly[0][0]]
+            y_coords = [p[1] for p in poly] + [poly[0][1]]
+            ax.fill(x_coords, y_coords, color='blue', zorder=0)
+
+    # Plot room labels
     for label, (x, y) in label_positions.items():
-        ax.text(x, y, label, fontsize=text_size, ha='center', va='center', 
-                bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+        ax.text(
+            x, y, label, fontsize=text_size, ha='center', va='center',
+            bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3')
+        )
 
-    # Save image if path is provided
     if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+        plt.savefig(save_path, dpi=300, bbox_inches="tight", facecolor="white", transparent=False)
 
-    plt.show()  # Show plot without blocking execution
-    plt.close()  # Immediately close the plot window
+    plt.show()
+    plt.close()
 
+
+def add_balcony_to_room(room_name, edges_dict, label_positions, balcony_depth=5.0):
+    outside_edges = get_outside_edges_of_room(edges_dict, room_name)
+    best_edge = pick_best_outside_edge(outside_edges)
+    if not best_edge:
+        print(f"No suitable outside edge found for room '{room_name}'")
+        return None, None
+
+    if room_name not in label_positions:
+        print(f"Room '{room_name}' not found in label_positions for center calculation")
+        return None, None
+
+    room_center = label_positions[room_name]
+
+    # 1. Take left (or right) portion of the edge for the balcony
+    balcony_edge = create_side_segment(best_edge, fraction=0.7, from_start=True)
+
+    # 2. Door is centered inside the balcony edge
+    door_edge = create_centered_segment(balcony_edge, fraction=0.25)
+
+    # 3. Build balcony polygon from that side
+    balcony_poly = create_balcony_from_edge(balcony_edge, depth=balcony_depth, room_center=room_center)
+
+    door_edges = {door_edge: [room_name, f"{room_name}_balcony"]}
+
+    return {f"{room_name}_balcony": balcony_poly}, door_edges
 
 
 def remove_room(graph_data, room_name):
@@ -1047,6 +1271,38 @@ def remove_corridor_edges_from_living_room(graph_edges, edges_to_remove):
 
     return filtered_edges
 
+def get_adjacency_requirements(user_constraints, room_sizes):
+    valid_room_names = list(room_sizes.keys())
+    
+    # Check if 'adjacentTo' exists
+    if "floorplan_relationships" not in user_constraints or \
+       "adjacentTo" not in user_constraints["floorplan_relationships"]:
+        return None
+
+    adjacency_raw = user_constraints["floorplan_relationships"]["adjacentTo"]
+    mapped_adjacency = []
+
+    def normalize_room_name(original_name):
+        cleaned_name = original_name.replace("_", "").lower()
+
+        if cleaned_name in room_sizes:
+            return original_name
+
+        closest_match = find_closest_room(cleaned_name, valid_room_names)
+
+        # Extract numeric suffix
+        suffix_match = re.search(r'\d+$', original_name)
+        suffix = f"_{suffix_match.group()}" if suffix_match else ""
+
+        return closest_match + suffix
+
+    for room1, room2 in adjacency_raw:
+        mapped_room1 = normalize_room_name(room1)
+        mapped_room2 = normalize_room_name(room2)
+        mapped_adjacency.append([mapped_room1, mapped_room2])
+
+    return mapped_adjacency
+
 def count_satisfied_adjacencies(room_data, adjacency_requirements):
     """Counts how many adjacency requirements are satisfied."""
     satisfied_count = 0
@@ -1066,19 +1322,33 @@ def optimize_adjacency(room_data, adjacency_requirements):
     """Attempts to maximize adjacency satisfaction by swapping rooms."""
     best_room_data = copy.deepcopy(room_data)
     best_score = count_satisfied_adjacencies(room_data, adjacency_requirements)
+    best_pair = None
 
     swappable_pairs = get_swappable_rooms(room_data)
 
-    # Try all possible swaps
     for pair in swappable_pairs:
         swapped_room_data = swap_rooms(room_data, pair)
         new_score = count_satisfied_adjacencies(swapped_room_data, adjacency_requirements)
 
-        if new_score > best_score:  # Keep the best configuration
+        print(f"Trying swap {pair}: Score = {new_score}")
+
+        if new_score > best_score:
             best_score = new_score
             best_room_data = swapped_room_data
+            best_pair = pair
+
+    if best_pair is not None:
+        i, j = best_pair
+        print(f"\n✅ Best swap: {best_pair} — New Score: {best_score}")
+        print(f"Swapped room '{room_data[i]['label']}' with '{room_data[j]['label']}'")
+        print(f"New positions:")
+        print(f"{best_room_data[i]['label']}: {best_room_data[i]['rect']}")
+        print(f"{best_room_data[j]['label']}: {best_room_data[j]['rect']}")
+    else:
+        print("\n⚠️ No beneficial swap found.")
 
     return best_room_data, best_score
+
 
 def generate_door_edges(edges_dict, door_size=4, offset_threshold=1):
     door_edges = {}

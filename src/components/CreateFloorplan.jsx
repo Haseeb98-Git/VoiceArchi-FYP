@@ -617,7 +617,18 @@ const CreateFloorplan = () =>{
             {activeTab === "floorplan" && (
                 <div className="flex justify-center items-center h-full">
                     {floorplanImage ? (
-                        <img src={floorplanImage} alt="Final Floorplan" className="w-auto max-h-full rounded-lg shadow-lg" />
+                        <img
+                        src={floorplanImage}
+                        alt="Final Floorplan"
+                        className="w-auto max-h-full rounded-lg shadow-lg"
+                        style={{
+                          backgroundColor: "white",
+                          imageRendering: "auto",
+                          mixBlendMode: "normal",
+                          opacity: 1,
+                          zIndex: 10,
+                        }}
+                      />
                     ) : (
                         <p className="text-center text-white">[Final Floorplan Visualization Here]</p>
                     )}
